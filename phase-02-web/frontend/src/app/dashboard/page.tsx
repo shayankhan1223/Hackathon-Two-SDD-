@@ -39,7 +39,7 @@ export default function DashboardPage() {
           const taskList = response.tasks || [];
           setTasks(taskList);
 
-          const completed = taskList.filter((t: Task) => t.status === 'completed').length;
+          const completed = taskList.filter((t: Task) => t.completed).length;
           setSummary({
             total: taskList.length,
             completed,
@@ -216,22 +216,20 @@ export default function DashboardPage() {
                 <li key={task.id} className="py-3 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className={`w-3 h-3 rounded-full ${
-                      task.status === 'completed' ? 'bg-success' : 'bg-amber-500'
+                      task.completed ? 'bg-success' : 'bg-amber-500'
                     }`} />
                     <span className={`${
-                      task.status === 'completed' ? 'text-gray-500 line-through' : 'text-gray-900'
+                      task.completed ? 'text-gray-500 line-through' : 'text-gray-900'
                     }`}>
                       {task.title}
                     </span>
                   </div>
                   <span className={`text-xs px-2 py-1 rounded-full ${
-                    task.priority === 'high'
-                      ? 'bg-red-100 text-red-700'
-                      : task.priority === 'medium'
-                      ? 'bg-amber-100 text-amber-700'
-                      : 'bg-green-100 text-green-700'
+                    task.completed
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-amber-100 text-amber-700'
                   }`}>
-                    {task.priority}
+                    {task.completed ? 'Done' : 'Pending'}
                   </span>
                 </li>
               ))}

@@ -46,9 +46,8 @@ export default function SignUpPage() {
 
     try {
       const response = await authAPI.register(formData);
-      // Handle both old format (user_id) and new format (user.id)
-      const userId = response.user?.id || response.user_id;
-      const email = response.user?.email || formData.email;
+      const userId = response.user.id;
+      const email = response.user.email || formData.email;
       setAuthToken(response.token, userId, email);
       router.push('/dashboard');
     } catch (error: unknown) {
