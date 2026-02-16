@@ -31,6 +31,8 @@ servers:
 tags:
   - name: Health
     description: Health check and API status endpoints
+  - name: Authentication
+    description: User registration and sign-in
   - name: Tasks
     description: Authenticated task management operations
 
@@ -101,6 +103,80 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/sign-up:
+    post:
+      tags:
+        - Authentication
+      summary: Register a new user
+      description: |
+        Creates a new user account with email and password.
+        Returns JWT token for immediate authentication.
+      operationId: signUp
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignUpRequest'
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                detail: "Email already registered"
+                error_code: "EMAIL_CONFLICT"
+                status_code: 409
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/auth/sign-in:
+    post:
+      tags:
+        - Authentication
+      summary: Sign in to existing account
+      description: |
+        Authenticates user with email and password.
+        Returns JWT token on successful authentication.
+      operationId: signIn
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignInRequest'
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                detail: "Invalid credentials"
+                error_code: "INVALID_CREDENTIALS"
+                status_code: 401
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /api/{user_id}/tasks:
     get:
@@ -320,6 +396,57 @@ components:
       description: JWT token obtained from Better Auth after authentication
 
   schemas:
+    SignUpRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: User's email address (must be unique)
+          example: "user@example.com"
+        password:
+          type: string
+          format: password
+          minLength: 8
+          description: User's password (minimum 8 characters)
+          example: "securepassword123"
+
+    SignInRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: User's email address
+          example: "user@example.com"
+        password:
+          type: string
+          format: password
+          description: User's password
+          example: "securepassword123"
+
+    AuthResponse:
+      type: object
+      required:
+        - user_id
+        - token
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          description: Unique identifier for the authenticated user
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        token:
+          type: string
+          description: JWT token for authentication (expires in 24 hours)
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
     CreateTaskRequest:
       type: object
       required:
@@ -410,10 +537,16 @@ components:
           type: string
           enum:
             - UNAUTHORIZED
+            - INVALID_CREDENTIALS
+            - TOKEN_EXPIRED
+            - INVALID_TOKEN
             - FORBIDDEN
+            - FORBIDDEN_USER_MISMATCH
+            - FORBIDDEN_NOT_OWNER
             - TASK_NOT_FOUND
             - INVALID_TASK_DATA
             - VALIDATION_ERROR
+            - EMAIL_CONFLICT
             - INTERNAL_ERROR
         status_code:
           type: integer

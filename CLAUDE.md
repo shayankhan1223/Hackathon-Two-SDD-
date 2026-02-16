@@ -208,3 +208,22 @@ Wait for consent; never auto-create ADRs. Group related decisions (stacks, authe
 
 ## Code Standards
 See `.specify/memory/constitution.md` for code quality, testing, performance, security, and architecture principles.
+
+## Active Technologies
+- Neon PostgreSQL (serverless PostgreSQL) (003-web-auth-db)
+- Python 3.12+ (backend), TypeScript 5.x (frontend) (004-ai-chat-todo)
+- Neon PostgreSQL (serverless) via asyncpg (004-ai-chat-todo)
+- Python 3.12, TypeScript 5.x + FastAPI, Next.js 14+, Neon PostgreSQL, SQLModel, JWT (004-ai-chat-todo)
+- Neon PostgreSQL (serverless PostgreSQL) via asyncpg (004-ai-chat-todo)
+- TypeScript 5.x, React 18, Next.js 14 (App Router) + Tailwind CSS 3.4, Lucide React (icons), clsx, Zod (004-ai-chat-todo)
+- N/A (frontend only — consumes existing backend APIs) (004-ai-chat-todo)
+- TypeScript 5.9.3 (Next.js 16, React 19) + Tailwind CSS 4.1.18, Lucide React 0.563, clsx, react-hook-form, zod (004-ai-chat-todo)
+- TypeScript 5.9.3 with React 19 and Next.js 16.1.6 (App Router) + Tailwind CSS 4.1.18, Lucide React 0.563, clsx, Zod 4.3, react-hook-form 7.71 (005-dashboard-redesign-ai)
+- N/A (frontend-only; consumes existing backend APIs via `src/lib/api.ts`) (005-dashboard-redesign-ai)
+- Python 3.12 (backend), TypeScript 5.9.3 (frontend) + FastAPI, SQLModel, OpenAI Agents SDK, asyncpg (backend); Next.js 16, React 19, Tailwind CSS 4.x, Lucide React (frontend) (006-phase3-improvements)
+- Neon PostgreSQL (serverless) via asyncpg with SQLAlchemy async engine (006-phase3-improvements)
+- Python 3.12 (backend — no changes in Round 2), TypeScript 5.9.3 (frontend) + Next.js 16, React 19, Tailwind CSS 4.x, Lucide React (frontend only — backend unchanged) (006-phase3-improvements)
+- Neon PostgreSQL via asyncpg (no schema changes in Round 2) (006-phase3-improvements)
+
+## Recent Changes
+- 003-web-auth-db: Added Neon PostgreSQL (serverless PostgreSQL)

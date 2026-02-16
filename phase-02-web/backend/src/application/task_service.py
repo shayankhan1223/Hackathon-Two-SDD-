@@ -1,146 +1,133 @@
-"""Task service - Business logic and use case orchestration."""
-
-from typing import List, Optional
+"""
+Task service with business logic and user isolation enforcement.
+"""
+from sqlmodel import Session, select
 from uuid import UUID
-
-from ..domain.task import Task
-from ..domain.task_repository import TaskRepository
-from .exceptions import InvalidTaskDataError, TaskNotFoundError
+from typing import List, Optional
+from datetime import datetime
+from src.infrastructure.models import Task
 
 
 class TaskService:
-    """Orchestrates task operations and enforces business rules.
+    """Service for task management with user isolation."""
 
-    This service layer sits between the interface (CLI) and domain/infrastructure,
-    coordinating task operations and handling exceptions.
-    """
+    def __init__(self, session: Session):
+        self.session = session
 
-    def __init__(self, repository: TaskRepository) -> None:
-        """Initialize service with a task repository.
-
-        Args:
-            repository: Implementation of TaskRepository interface
+    def get_user_tasks(self, user_id: UUID) -> List[Task]:
         """
-        self._repository = repository
-
-    def create_task(self, title: str, description: str = "") -> Task:
-        """Create a new task with validation.
+        Get all tasks for a specific user.
 
         Args:
-            title: Task title (required, non-empty)
+            user_id: User's unique identifier
+
+        Returns:
+            List of tasks belonging to the user
+        """
+        statement = select(Task).where(Task.user_id == user_id).order_by(Task.created_at.desc())
+        tasks = self.session.exec(statement).all()
+        return list(tasks)
+
+    def create_task(self, user_id: UUID, title: str, description: Optional[str] = None) -> Task:
+        """
+        Create a new task for a user.
+
+        Args:
+            user_id: Owner's unique identifier
+            title: Task title (required)
             description: Task description (optional)
 
         Returns:
-            Newly created task with unique ID
+            Created task
 
-        Raises:
-            InvalidTaskDataError: If title is empty or exceeds length limits
+        Business Rules:
+            - user_id is set automatically from JWT
+            - title must not be empty
+            - user_id is immutable after creation
         """
-        try:
-            task = Task.create(title=title, description=description)
-            return self._repository.create(task)
-        except ValueError as e:
-            raise InvalidTaskDataError(str(e)) from e
+        task = Task(user_id=user_id, title=title, description=description or "")
 
-    def get_task(self, task_id: str) -> Task:
-        """Retrieve a task by ID.
-
-        Args:
-            task_id: String representation of task UUID
-
-        Returns:
-            The requested task
-
-        Raises:
-            TaskNotFoundError: If task does not exist
-            InvalidTaskDataError: If task_id is not a valid UUID
-        """
-        try:
-            uuid_id = UUID(task_id)
-        except ValueError as e:
-            raise InvalidTaskDataError(f"Invalid task ID format: {task_id}") from e
-
-        task = self._repository.get_by_id(uuid_id)
-        if task is None:
-            raise TaskNotFoundError(task_id)
+        self.session.add(task)
+        self.session.commit()
+        self.session.refresh(task)
 
         return task
 
-    def list_tasks(self) -> List[Task]:
-        """Retrieve all tasks.
+    def get_task_by_id(self, task_id: UUID, user_id: UUID) -> Optional[Task]:
+        """
+        Get a specific task by ID if it belongs to the user.
+
+        Args:
+            task_id: Task's unique identifier
+            user_id: User's unique identifier (for ownership validation)
 
         Returns:
-            List of all tasks (empty list if none exist)
+            Task if found and owned by user, None otherwise
         """
-        return self._repository.get_all()
+        statement = select(Task).where(Task.id == task_id, Task.user_id == user_id)
+        task = self.session.exec(statement).first()
+        return task
 
     def update_task(
         self,
-        task_id: str,
+        task_id: UUID,
+        user_id: UUID,
         title: Optional[str] = None,
-        description: Optional[str] = None
-    ) -> Task:
-        """Update a task's title and/or description.
+        description: Optional[str] = None,
+        completed: Optional[bool] = None,
+    ) -> Optional[Task]:
+        """
+        Update a task if it belongs to the user.
 
         Args:
-            task_id: String representation of task UUID
-            title: New title (optional, if provided must be non-empty)
+            task_id: Task's unique identifier
+            user_id: User's unique identifier (for ownership validation)
+            title: New title (optional)
             description: New description (optional)
+            completed: New completion status (optional)
 
         Returns:
-            The updated task
+            Updated task if found and owned by user, None otherwise
 
-        Raises:
-            TaskNotFoundError: If task does not exist
-            InvalidTaskDataError: If validation fails
+        Business Rules:
+            - user_id cannot be changed (immutable)
+            - updated_at is automatically set
         """
-        # Get existing task
-        task = self.get_task(task_id)
+        task = self.get_task_by_id(task_id, user_id)
+        if not task:
+            return None
 
-        # Update fields if provided
-        try:
-            if title is not None:
-                task.update_title(title)
-            if description is not None:
-                task.update_description(description)
+        if title is not None:
+            task.title = title
+        if description is not None:
+            task.description = description
+        if completed is not None:
+            task.completed = completed
 
-            return self._repository.update(task)
-        except ValueError as e:
-            raise InvalidTaskDataError(str(e)) from e
+        task.updated_at = datetime.utcnow()
 
-    def complete_task(self, task_id: str) -> Task:
-        """Toggle a task's completion status.
+        self.session.add(task)
+        self.session.commit()
+        self.session.refresh(task)
+
+        return task
+
+    def delete_task(self, task_id: UUID, user_id: UUID) -> bool:
+        """
+        Delete a task if it belongs to the user.
 
         Args:
-            task_id: String representation of task UUID
+            task_id: Task's unique identifier
+            user_id: User's unique identifier (for ownership validation)
 
         Returns:
-            The updated task
-
-        Raises:
-            TaskNotFoundError: If task does not exist
-            InvalidTaskDataError: If task_id is not a valid UUID
+            True if task was deleted, False if not found or not owned by user
         """
-        task = self.get_task(task_id)
-        task.toggle_completion()
-        return self._repository.update(task)
+        task = self.get_task_by_id(task_id, user_id)
+        if not task:
+            return False
 
-    def delete_task(self, task_id: str) -> None:
-        """Delete a task by ID.
+        self.session.delete(task)
+        self.session.commit()
 
-        Args:
-            task_id: String representation of task UUID
-
-        Raises:
-            TaskNotFoundError: If task does not exist
-            InvalidTaskDataError: If task_id is not a valid UUID
-        """
-        try:
-            uuid_id = UUID(task_id)
-        except ValueError as e:
-            raise InvalidTaskDataError(f"Invalid task ID format: {task_id}") from e
-
-        if not self._repository.exists(uuid_id):
-            raise TaskNotFoundError(task_id)
-
-        self._repository.delete(uuid_id)
+        return True

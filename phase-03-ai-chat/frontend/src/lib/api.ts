@@ -32,18 +32,26 @@ async function apiFetch<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers,
-  });
+  try {
+    const res = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers,
+    });
 
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(error.detail || `API error: ${res.status}`);
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(error.detail || `API error: ${res.status}`);
+    }
+
+    if (res.status === 204) return undefined as T;
+    return res.json();
+  } catch (error) {
+    // Handle network errors
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error('Network error: Unable to reach the server. Please check your connection and ensure the backend is running.');
+    }
+    throw error;
   }
-
-  if (res.status === 204) return undefined as T;
-  return res.json();
 }
 
 // Auth endpoints
@@ -60,6 +68,21 @@ export const api = {
         { method: "POST", body: JSON.stringify({ email, password }) }
       ),
     me: () => apiFetch<{ id: string; email: string; created_at: string }>("/api/auth/me"),
+    forgotPassword: (email: string) =>
+      apiFetch<{ message: string }>(
+        "/api/auth/forgot-password",
+        { method: "POST", body: JSON.stringify({ email }) }
+      ),
+    resetPassword: (token: string, newPassword: string) =>
+      apiFetch<{ message: string }>(
+        "/api/auth/reset-password",
+        { method: "POST", body: JSON.stringify({ token, new_password: newPassword }) }
+      ),
+    changePassword: (currentPassword: string, newPassword: string) =>
+      apiFetch<{ message: string }>(
+        "/api/auth/change-password",
+        { method: "POST", body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }) }
+      ),
   },
 
   tasks: {
@@ -115,5 +138,16 @@ export const api = {
       apiFetch<{ messages: import("./types").ChatMessage[] }>(
         `/api/chat/history?limit=${limit}`
       ),
+  },
+
+  user: {
+    preferences: {
+      get: () => apiFetch<import("./types").UserPreferences>("/api/user/preferences"),
+      update: (data: Partial<import("./types").UserPreferences>) =>
+        apiFetch<import("./types").UserPreferences>("/api/user/preferences", {
+          method: "PATCH",
+          body: JSON.stringify(data),
+        }),
+    },
   },
 };

@@ -1,248 +1,313 @@
-# Todo Application Frontend - Next.js 15
+# Todo App Frontend - Multi-User Task Management
 
-A modern, production-ready todo application frontend built with Next.js 15, TypeScript, and Tailwind CSS.
-
-## Tech Stack
-
-- **Next.js 15** - React framework with App Router
-- **React 19** - Latest React with concurrent features
-- **TypeScript** - Strict type checking
-- **Tailwind CSS** - Utility-first CSS framework
-- **Custom Hooks** - Clean state management with `useTasks`
+A modern, production-ready frontend for a multi-user todo application built with Next.js 14, TypeScript, and Tailwind CSS.
 
 ## Features
 
-- ✅ Create new tasks with title and description
-- ✅ View all tasks in a clean, organized list
-- ✅ Toggle task completion status
-- ✅ Edit existing tasks via modal
-- ✅ Delete tasks with confirmation
-- ✅ Real-time validation and error handling
-- ✅ Loading states and skeleton screens
-- ✅ Responsive design (mobile-friendly)
-- ✅ Beautiful Tailwind CSS styling
+### Implemented (MVP - User Stories 1-3)
+
+- **User Authentication**
+  - Sign up with email and password
+  - Sign in with credential validation
+  - JWT token management with automatic API integration
+  - Persistent authentication (tokens stored in localStorage)
+  - Automatic redirect to sign-in on token expiration
+
+- **View Tasks**
+  - View personal task list
+  - User isolation (only see your own tasks)
+  - Empty state with friendly message
+  - Task completion status visualization
+  - Responsive design for mobile and desktop
+
+- **Create Tasks**
+  - Create new tasks with title and description
+  - Client-side validation (title required, max lengths)
+  - Real-time character count
+  - Success feedback and automatic redirect
+  - Error handling with helpful messages
+
+- **Task Management**
+  - Toggle task completion with optimistic updates
+  - Delete tasks with confirmation
+  - Real-time task count display
+  - Formatted dates and timestamps
+
+## Tech Stack
+
+- **Framework**: Next.js 14 (App Router)
+- **Language**: TypeScript 5.4+ (strict mode)
+- **Styling**: Tailwind CSS 3.4
+- **HTTP Client**: Axios with JWT interceptor
+- **Validation**: Zod for schema validation
+- **State Management**: React hooks
+- **Authentication**: JWT tokens (localStorage)
 
 ## Project Structure
 
 ```
 frontend/
-├── app/
-│   ├── page.tsx              # Main page (task list + form)
-│   ├── layout.tsx            # Root layout with metadata
-│   └── globals.css           # Tailwind CSS imports
-├── components/
-│   ├── TaskForm.tsx          # Create task form
-│   ├── TaskList.tsx          # Task list container
-│   ├── TaskItem.tsx          # Individual task card
-│   ├── TaskEditModal.tsx     # Edit task modal
-│   └── DeleteConfirmModal.tsx # Delete confirmation modal
-├── lib/
-│   ├── api.ts                # API client (typed)
-│   └── types.ts              # TypeScript interfaces
-├── hooks/
-│   └── useTasks.ts           # Custom hook for task state
+├── src/
+│   ├── app/
+│   │   ├── (auth)/
+│   │   │   ├── sign-up/
+│   │   │   │   └── page.tsx        # Sign-up page
+│   │   │   └── sign-in/
+│   │   │       └── page.tsx        # Sign-in page
+│   │   ├── tasks/
+│   │   │   ├── page.tsx            # Task list page
+│   │   │   └── new/
+│   │   │       └── page.tsx        # Create task page
+│   │   ├── layout.tsx              # Root layout
+│   │   ├── page.tsx                # Home page (redirects)
+│   │   └── globals.css             # Global styles
+│   ├── components/
+│   │   ├── Header.tsx              # App header with sign-out
+│   │   ├── TaskCard.tsx            # Individual task card
+│   │   ├── TaskList.tsx            # Task list with empty state
+│   │   ├── TaskForm.tsx            # Reusable task form
+│   │   └── LoadingSpinner.tsx      # Loading indicator
+│   └── lib/
+│       ├── api-client.ts           # Axios instance with JWT
+│       ├── auth.ts                 # Auth utilities
+│       ├── types.ts                # TypeScript types
+│       └── validation.ts           # Zod schemas
 ├── package.json
 ├── tsconfig.json
 ├── tailwind.config.ts
-├── next.config.ts
-└── README.md
+├── next.config.mjs
+└── .env.local.example
 ```
 
-## Prerequisites
+## Getting Started
 
-- Node.js 18+ or 20+
-- npm or yarn
-- Backend API running at `http://localhost:8000` (FastAPI)
+### Prerequisites
 
-## Installation
+- Node.js 18.0 or later
+- npm or pnpm
+- Backend API running on http://localhost:8000 (see `../backend/README.md`)
 
-1. Install dependencies:
+### Installation
+
+1. **Install dependencies:**
 
 ```bash
+cd phase-02-web/frontend
 npm install
 ```
 
-2. Create environment file (already created):
+2. **Configure environment variables:**
 
 ```bash
-# .env.local
+cp .env.local.example .env.local
+```
+
+Edit `.env.local`:
+
+```env
 NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_JWT_SECRET=your-32-char-secret-key
 ```
 
-## Development
+**Important**: `NEXT_PUBLIC_JWT_SECRET` must match the `JWT_SECRET` in your backend `.env` file.
 
-1. Start the backend API first (in another terminal):
-
-```bash
-cd ../backend
-uv run uvicorn src.api.main:app --reload
-```
-
-2. Start the Next.js development server:
+3. **Start the development server:**
 
 ```bash
 npm run dev
 ```
 
-3. Open your browser at [http://localhost:3000](http://localhost:3000)
+The app will be available at http://localhost:3000
 
-## Building for Production
+### Build for Production
 
 ```bash
 npm run build
 npm start
 ```
 
-## TypeScript Types
-
-All API interactions are fully typed:
-
-```typescript
-interface Task {
-  id: string;
-  title: string;
-  description: string;
-  completed: boolean;
-}
-
-interface CreateTaskRequest {
-  title: string;
-  description: string;
-}
-
-interface UpdateTaskRequest {
-  title?: string;
-  description?: string;
-}
-```
-
-## API Client
-
-The `apiClient` provides typed methods for all backend operations:
-
-- `createTask(data)` - Create new task
-- `getTasks()` - Fetch all tasks
-- `getTask(id)` - Get single task
-- `updateTask(id, data)` - Update task
-- `deleteTask(id)` - Delete task
-- `toggleTaskCompletion(id)` - Toggle completion status
-
-## Custom Hooks
-
-### `useTasks()`
-
-Provides complete task management functionality:
-
-```typescript
-const {
-  tasks,           // Array of tasks
-  loading,         // Loading state
-  error,           // Error message
-  createTask,      // Create task function
-  updateTask,      // Update task function
-  deleteTask,      // Delete task function
-  toggleTaskCompletion, // Toggle completion function
-  refetch          // Manually refetch tasks
-} = useTasks();
-```
-
-## Component Architecture
-
-### Server vs Client Components
-
-- **Server Components**: `layout.tsx` (default)
-- **Client Components**: All interactive components marked with `'use client'`
-
-### Component Hierarchy
-
-```
-page.tsx (Client Component)
-├── TaskForm
-├── TaskList
-│   └── TaskItem (multiple)
-├── TaskEditModal
-└── DeleteConfirmModal
-```
-
-## Styling Guidelines
-
-All styling uses Tailwind CSS utility classes:
-
-- **Primary Color**: Blue (blue-600, blue-700)
-- **Success**: Green (green-500, green-100)
-- **Danger**: Red (red-600, red-700)
-- **Completed Tasks**: Gray with line-through
-- **Shadows**: Medium shadows for cards
-- **Rounded Corners**: Medium rounding (rounded-lg, rounded-md)
-
-## Error Handling
-
-- Network errors display friendly messages
-- Validation errors show inline on forms
-- API errors are caught and displayed to users
-- Loading states prevent double submissions
-
-## Performance Features
-
-- Optimistic UI updates
-- Skeleton loading screens
-- Debounced input validation
-- Efficient re-renders with proper memoization
-
 ## Environment Variables
 
-- `NEXT_PUBLIC_API_URL` - Backend API base URL (default: http://localhost:8000)
+| Variable | Description | Required | Default |
+|----------|-------------|----------|---------|
+| `NEXT_PUBLIC_API_URL` | Backend API base URL | Yes | `http://localhost:8000` |
+| `NEXT_PUBLIC_JWT_SECRET` | JWT secret (must match backend) | Yes | - |
 
-## Code Quality
+## Usage
 
-- ✅ Strict TypeScript mode enabled
-- ✅ ESLint configured with Next.js rules
-- ✅ All props and functions properly typed
-- ✅ Clean component separation (container vs presentational)
-- ✅ No business logic in components (delegated to hooks)
+### Authentication Flow
 
-## Browser Support
+1. **Sign Up**
+   - Navigate to http://localhost:3000
+   - Click "Sign up" or go to `/sign-up`
+   - Enter email and password (min 8 characters)
+   - Automatically signed in and redirected to tasks
 
-Modern browsers supporting:
-- ES2020+
-- CSS Grid and Flexbox
-- Fetch API
-- Async/await
+2. **Sign In**
+   - Navigate to http://localhost:3000 or `/sign-in`
+   - Enter your credentials
+   - Redirected to your personal task list
+
+3. **Sign Out**
+   - Click "Sign Out" in the header
+   - Token is cleared and you're redirected to sign-in
+
+### Task Management
+
+1. **View Tasks**
+   - After signing in, view your task list at `/tasks`
+   - Empty state shown if no tasks exist
+   - Tasks show title, description, completion status, and date
+
+2. **Create Task**
+   - Click "New Task" button
+   - Fill in title (required) and description (optional)
+   - Click "Create Task"
+   - Redirected back to task list with new task visible
+
+3. **Complete/Uncomplete Task**
+   - Click the checkbox next to any task
+   - Status updates immediately (optimistic update)
+   - Changes persist across page refreshes
+
+4. **Delete Task**
+   - Click the trash icon on any task
+   - Confirm deletion in browser dialog
+   - Task removed immediately
+
+## API Integration
+
+The frontend communicates with the backend API using Axios with automatic JWT token attachment.
+
+### API Endpoints Used
+
+- `POST /api/auth/sign-up` - Create new user account
+- `POST /api/auth/sign-in` - Authenticate user
+- `GET /api/{user_id}/tasks` - List user's tasks
+- `POST /api/{user_id}/tasks` - Create new task
+- `PUT /api/{user_id}/tasks/{task_id}` - Update task (including toggle completion)
+- `DELETE /api/{user_id}/tasks/{task_id}` - Delete task
+
+### Error Handling
+
+- **401 Unauthorized**: Token expired or invalid - automatic redirect to sign-in
+- **403 Forbidden**: User ID mismatch - access denied
+- **409 Conflict**: Email already registered during sign-up
+- **400 Validation Error**: Invalid input data
+- **Network Errors**: Friendly error messages displayed
+
+## Design System
+
+### Color Palette
+
+- **Primary**: Blue (#3B82F6) - Buttons, links, accents
+- **Success**: Green (#10B981) - Completed tasks, success messages
+- **Error**: Red (#EF4444) - Error messages, delete actions
+- **Neutral**: Gray scale - Text, backgrounds, borders
+
+### Components
+
+All components follow:
+- Mobile-first responsive design
+- Accessibility best practices
+- TypeScript strict typing
+- Reusable and composable patterns
+
+### Tailwind CSS Utilities
+
+Custom utility classes defined in `globals.css`:
+- `.btn`, `.btn-primary`, `.btn-secondary`, `.btn-danger`
+- `.input`, `.input-error`
+- `.card`
+- `.form-group`, `.form-label`, `.form-error`
+
+## Development
+
+### Scripts
+
+```bash
+npm run dev      # Start development server
+npm run build    # Build for production
+npm start        # Start production server
+npm run lint     # Run ESLint
+```
+
+### Type Safety
+
+- Strict TypeScript mode enabled
+- No `any` types allowed
+- All API responses typed
+- Zod validation for forms
+
+### Code Quality
+
+- ESLint with Next.js recommended config
+- TypeScript strict mode
+- Consistent component structure
+- Error boundaries and loading states
+
+## Architecture Decisions
+
+### Why Next.js App Router?
+
+- Server Components by default (better performance)
+- Improved routing with file-system based structure
+- Better TypeScript integration
+- Modern React patterns
+
+### Why localStorage for JWT?
+
+- Simple implementation for MVP
+- Works across page refreshes
+- No server-side session management needed
+- Can be upgraded to httpOnly cookies later
+
+### Why Zod for Validation?
+
+- Type-safe schema validation
+- Excellent TypeScript integration
+- Runtime validation + compile-time types
+- Better error messages than manual validation
 
 ## Troubleshooting
 
-### Backend Connection Issues
+### Issue: "Network error" on all API calls
 
-If you see "Cannot connect to server":
-1. Verify backend is running at http://localhost:8000
-2. Check CORS configuration in backend
-3. Ensure `.env.local` has correct API URL
+**Solution**: Ensure backend is running on http://localhost:8000 and `NEXT_PUBLIC_API_URL` is correct.
 
-### Port Already in Use
+### Issue: Authentication not persisting
 
-If port 3000 is taken:
-```bash
-PORT=3001 npm run dev
-```
+**Solution**: Check browser console for localStorage errors. Clear localStorage and sign in again.
 
-### TypeScript Errors
+### Issue: CORS errors
 
-Run type checking:
-```bash
-npx tsc --noEmit
-```
+**Solution**: Backend must have `CORS_ORIGINS=http://localhost:3000` in `.env` file.
 
-## Future Enhancements (Phase III+)
+### Issue: 401 errors after successful sign-in
 
-- Authentication and user management
-- Database persistence
-- Real-time updates with WebSockets
-- Task categories and tags
-- Due dates and reminders
-- Dark mode support
-- Keyboard shortcuts
-- Drag-and-drop reordering
+**Solution**: Ensure `NEXT_PUBLIC_JWT_SECRET` matches backend `JWT_SECRET` exactly.
+
+## Future Enhancements (Not in MVP)
+
+- [ ] Edit task functionality (User Story 4)
+- [ ] Task detail page
+- [ ] Filtering (completed/incomplete)
+- [ ] Sorting options
+- [ ] Search functionality
+- [ ] Password reset flow
+- [ ] User profile page
+- [ ] Task due dates
+- [ ] Task categories/tags
+- [ ] Dark mode
+
+## Contributing
+
+This project follows the Spec-Driven Development (SDD) methodology. See `specs/003-web-auth-db/` for specifications, architecture decisions, and tasks.
 
 ## License
 
-Part of the Hackathon II - Spec-Driven Todo System
+MIT
+
+## Support
+
+For issues or questions, please refer to the specification documents in `specs/003-web-auth-db/`.

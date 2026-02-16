@@ -1,406 +1,484 @@
 # Implementation Plan: Multi-User Todo Application with Authentication & Database
 
-**Branch**: `003-web-auth-db`  
-**Date**: 2026-02-09  
-**Spec**: [spec.md](spec.md)  
-**Phase**: II Upgrade  
-**Type**: Enhancement (Authentication + Database Persistence)
+**Branch**: `003-web-auth-db` | **Date**: 2026-02-09 | **Spec**: [spec.md](./spec.md)
+**Input**: Feature specification from `/specs/003-web-auth-db/spec.md`
 
-## Executive Summary
+**Note**: This template is filled in by the `/sp.plan` command. See `.specify/templates/commands/plan.md` for the execution workflow.
 
-Upgrade Phase II web todo application from in-memory, single-user to **authenticated multi-user system with PostgreSQL persistence**.
+## Summary
 
-**Key Changes:**
-- **Authentication**: Better Auth (Next.js) with JWT plugin → JWKS-based token verification
-- **Database**: Neon PostgreSQL via SQLModel ORM → Persistent storage for users + tasks
-- **Authorization**: JWT verification + user_id validation → Multi-layer user isolation
-- **Security**: JWKS public key verification, password hashing (Better Auth), HTTPS in production
+Build a production-grade multi-user web todo application with JWT-based authentication, user isolation, and PostgreSQL persistent storage. The system consists of a Next.js frontend (using Better Auth), a FastAPI backend with layered architecture, and Neon PostgreSQL database. All communication secured via stateless JWT authentication with strict user-task ownership enforcement at API, service, and database layers.
 
-**Technology Stack:**
-- **Frontend**: Next.js 16+, React 19, TypeScript, Better Auth, Tailwind CSS
-- **Backend**: Python 3.13+, FastAPI, SQLModel, python-jose (JWT), psycopg2 (PostgreSQL driver)
-- **Database**: Neon Serverless PostgreSQL (cloud-hosted, managed)
+## Technical Context
 
----
+**Language/Version**:
+- Backend: Python 3.11+
+- Frontend: TypeScript 5.0+ (Next.js)
 
-## Architecture Overview
+**Primary Dependencies**:
+- Backend: FastAPI, SQLModel, PyJWT, bcrypt, psycopg2
+- Frontend: Next.js 14 (App Router), Better Auth, React 18
 
-### System Components
+**Storage**: Neon PostgreSQL (serverless PostgreSQL)
 
-```
-Browser
-  ↓
-Next.js Frontend (localhost:3000)
-  ├─ Better Auth (/api/auth/*) → Issues JWT tokens
-  └─ Task UI → Sends JWT in Authorization header
-      ↓
-FastAPI Backend (localhost:8000)
-  ├─ JWT Middleware → Verifies via JWKS
-  ├─ API Layer → Routes with auth
-  ├─ Application Layer → TaskService (business logic)
-  ├─ Domain Layer → Task entity (validation)
-  └─ Infrastructure Layer → SQLModel Repository
-      ↓
-Neon PostgreSQL (cloud)
-  ├─ users (Better Auth)
-  ├─ sessions (Better Auth)
-  ├─ jwks (Better Auth - JWT keys)
-  └─ tasks (Application - with user_id FK)
-```
+**Testing**:
+- Backend: pytest, pytest-asyncio
+- Frontend: Vitest, React Testing Library
 
-### Authentication Flow
+**Target Platform**: Web (cross-browser desktop and mobile)
 
-1. **User signs up/in** → Better Auth validates credentials
-2. **Better Auth issues JWT** → Signed with private key (stored in `jwks` table)
-3. **Frontend calls API** → Includes `Authorization: Bearer <JWT>` header
-4. **Backend verifies JWT** → Fetches public keys from Better Auth JWKS endpoint
-5. **Backend authorizes** → Validates path `user_id` matches JWT `user_id`
-6. **Backend queries database** → Filters tasks by `user_id` (user isolation)
+**Project Type**: Web (frontend + backend)
 
----
+**Performance Goals**:
+- API response time: <500ms p95
+- Task list load: <2 seconds for 100 tasks
+- Authentication flow: <2 minutes end-to-end
 
-## Technical Decisions
+**Constraints**:
+- Stateless authentication (no shared session store)
+- User isolation enforced at all layers
+- JWT expiry: 24 hours
+- HTTPS required in production
 
-### Decision 1: Better Auth with JWKS (vs Shared Secret)
+**Scale/Scope**:
+- Multi-user system (100+ concurrent users)
+- ~10 API endpoints
+- 2 database tables (users, tasks)
+- 5 main UI screens (sign-up, sign-in, task list, task detail, task form)
 
-**Chosen**: JWKS-based JWT verification  
-**Rationale**:
-- Industry standard for multi-service auth
-- Supports key rotation (security best practice)
-- Better Auth default (aligned with library design)
-- No shared secret management needed
+## Constitution Check
 
-**Implementation**:
-- Backend fetches public keys from `/api/auth/jwks`
-- Cache JWKS for 1 hour (refresh on verification failure)
-- Use python-jose for JWKS verification
+*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-### Decision 2: Unified Database (vs Separate Databases)
+**Status**: ⚠️ Constitution file is template-only. Proceeding with industry-standard best practices.
 
-**Chosen**: Single Neon PostgreSQL database  
-**Rationale**:
-- Simpler setup (one connection string)
-- Can use foreign key constraints (tasks.user_id → users.id)
-- Consistent backups and monitoring
-- Easier local development
+### Applied Principles (Inferred from Spec-Driven Development):
 
-**Schema**:
-- Better Auth manages: `users`, `sessions`, `accounts`, `verification`, `jwks`
-- Application manages: `tasks` (with `user_id` FK referencing Better Auth users)
+1. ✅ **Specification First**: Complete spec.md exists with user scenarios, requirements, and acceptance criteria
+2. ✅ **Test-Driven Development**: Tests specified before implementation (backend auth, API, frontend integration)
+3. ✅ **Clear Separation**: Frontend/Backend separation with REST API contract
+4. ✅ **Security by Design**: JWT validation, password hashing, user isolation enforced
+5. ✅ **Explicit Exclusions**: Scope clearly defined (no OAuth, no task sharing, no real-time)
+6. ✅ **Measurable Success**: Quantifiable success criteria (100% auth rejection, <2s load time)
 
-### Decision 3: Synchronous SQLModel (vs Async)
+### Potential Constitution Violations (To Be Justified):
 
-**Chosen**: Synchronous SQLModel for Phase II  
-**Rationale**:
-- Simpler code (no async/await everywhere)
-- Fewer dependencies (no asyncpg)
-- Sufficient for local development
-- Easier to test
-
-**Future**: Migrate to async in Phase IV/V for production scalability
-
-### Decision 4: Multi-Layer Authorization
-
-**Chosen**: Enforce user isolation at 4 layers  
-**Rationale**: Defense in depth
-
-**Layers**:
-1. **API Layer**: Validate path `user_id` == JWT `user_id` (403 if mismatch)
-2. **Service Layer**: Pass `user_id` to all methods
-3. **Repository Layer**: Filter all queries: `WHERE user_id = ?`
-4. **Database Layer**: Foreign key constraints, indexes on `user_id`
-
----
-
-## Critical Implementation Files
-
-Based on architecture analysis, these 5 files are most critical:
-
-1. **`/backend/src/api/middleware/auth.py`** - JWT verification via JWKS
-2. **`/backend/src/infrastructure/sqlmodel_task_repository.py`** - PostgreSQL repository
-3. **`/frontend/lib/auth.ts`** - Better Auth server configuration
-4. **`/backend/src/api/routes/tasks.py`** - Authenticated API routes
-5. **`/frontend/hooks/useAuth.ts`** - Frontend auth state management
-
----
+None identified. Architecture follows clean separation, testability, and simplicity principles.
 
 ## Project Structure
 
-### Backend Enhancements
+### Documentation (this feature)
 
-```
-backend/src/
-├── domain/
-│   └── task.py              # ADD: user_id, created_at, updated_at
-├── application/
-│   └── task_service.py      # ADD: user_id parameter, authorization checks
-├── infrastructure/
-│   ├── database.py          # NEW: SQLModel engine, session management
-│   └── sqlmodel_task_repository.py  # NEW: PostgreSQL implementation
-├── api/
-│   ├── main.py              # UPDATE: CORS, error handlers, startup (create tables)
-│   ├── middleware/
-│   │   ├── auth.py          # NEW: JWT verification
-│   │   └── jwks_client.py   # NEW: JWKS fetching/caching
-│   ├── routes/
-│   │   └── tasks.py         # UPDATE: Add user_id path param, auth dependencies
-│   └── dependencies.py      # NEW: get_current_user, verify_user_id
-└── config.py                # NEW: Environment variables
+```text
+specs/[###-feature]/
+├── plan.md              # This file (/sp.plan command output)
+├── research.md          # Phase 0 output (/sp.plan command)
+├── data-model.md        # Phase 1 output (/sp.plan command)
+├── quickstart.md        # Phase 1 output (/sp.plan command)
+├── contracts/           # Phase 1 output (/sp.plan command)
+└── tasks.md             # Phase 2 output (/sp.tasks command - NOT created by /sp.plan)
 ```
 
-### Frontend Enhancements
+### Source Code (repository root)
 
-```
+```text
+backend/
+├── src/
+│   ├── domain/
+│   │   ├── __init__.py
+│   │   ├── task.py          # Task entity, ownership rules
+│   │   └── user.py          # User entity (reference only)
+│   ├── infrastructure/
+│   │   ├── __init__.py
+│   │   ├── database.py      # SQLModel session, connection
+│   │   └── models.py        # SQLModel ORM models
+│   ├── application/
+│   │   ├── __init__.py
+│   │   ├── task_service.py  # Task use cases, authorization
+│   │   └── auth_service.py  # JWT verification
+│   ├── api/
+│   │   ├── __init__.py
+│   │   ├── main.py          # FastAPI app
+│   │   ├── auth.py          # Auth routes (sign-up, sign-in)
+│   │   ├── tasks.py         # Task CRUD routes
+│   │   └── deps.py          # JWT dependency injection
+│   └── config.py            # Environment configuration
+├── tests/
+│   ├── unit/
+│   │   ├── test_task_domain.py
+│   │   └── test_auth_service.py
+│   ├── integration/
+│   │   ├── test_task_api.py
+│   │   └── test_auth_api.py
+│   └── conftest.py          # Pytest fixtures
+├── alembic/                 # Database migrations
+├── .env.example
+├── requirements.txt
+└── README.md
+
 frontend/
-├── app/
-│   ├── (auth)/              # NEW: Auth route group
-│   │   ├── sign-in/page.tsx
-│   │   └── sign-up/page.tsx
-│   └── api/auth/[...all]/   # NEW: Better Auth catch-all route
-│       └── route.ts
-├── components/
-│   └── auth/                # NEW: Auth components
-│       ├── SignInForm.tsx
-│       ├── SignUpForm.tsx
-│       └── AuthGuard.tsx
-├── lib/
-│   ├── auth.ts              # NEW: Better Auth config
-│   ├── auth-client.ts       # NEW: Better Auth client
-│   └── api-client.ts        # UPDATE: Inject JWT header
-└── hooks/
-    ├── useTasks.ts          # UPDATE: Handle auth errors
-    └── useAuth.ts           # NEW: Authentication hook
+├── src/
+│   ├── app/
+│   │   ├── (auth)/
+│   │   │   ├── sign-up/
+│   │   │   │   └── page.tsx
+│   │   │   └── sign-in/
+│   │   │       └── page.tsx
+│   │   ├── tasks/
+│   │   │   ├── page.tsx      # Task list
+│   │   │   ├── [id]/
+│   │   │   │   └── page.tsx  # Task detail
+│   │   │   └── new/
+│   │   │       └── page.tsx  # Create task
+│   │   ├── layout.tsx
+│   │   └── page.tsx          # Landing/redirect
+│   ├── components/
+│   │   ├── ui/               # Shared UI components
+│   │   ├── TaskList.tsx
+│   │   ├── TaskCard.tsx
+│   │   └── TaskForm.tsx
+│   ├── lib/
+│   │   ├── auth.ts           # Better Auth config
+│   │   ├── api-client.ts     # Axios with JWT interceptor
+│   │   └── types.ts          # TypeScript types
+│   └── middleware.ts         # Auth route protection
+├── tests/
+│   ├── auth.test.tsx
+│   └── tasks.test.tsx
+├── .env.local.example
+├── package.json
+└── README.md
 ```
+
+**Structure Decision**: Web application structure with backend (FastAPI + SQLModel) and frontend (Next.js App Router). Backend follows Clean Architecture (domain → application → infrastructure → api). Frontend uses Next.js 14 conventions with App Router, grouping auth routes separately.
+
+## Complexity Tracking
+
+> **Fill ONLY if Constitution Check has violations that must be justified**
+
+N/A - No constitution violations identified.
+
+---
+
+## Phase 0: Research & Technology Decisions
+
+### Research Tasks
+
+1. **Better Auth Integration with JWT**
+   - Research: Better Auth JWT plugin configuration
+   - Research: Sharing JWT secret between Next.js and FastAPI
+   - Decision: Use environment variable for shared secret
+   - Rationale: Stateless authentication, no shared session store
+
+2. **FastAPI JWT Validation**
+   - Research: PyJWT library for token verification
+   - Research: Dependency injection pattern for auth in FastAPI
+   - Decision: Use `Depends()` for JWT extraction and validation
+   - Rationale: DRY principle, automatic 401 handling
+
+3. **SQLModel with PostgreSQL**
+   - Research: SQLModel for ORM (Pydantic + SQLAlchemy)
+   - Research: Neon PostgreSQL connection string format
+   - Decision: Use SQLModel with asyncpg driver
+   - Rationale: Type safety, async support, Pydantic validation
+
+4. **User Isolation Strategy**
+   - Research: Row-level security vs application-level enforcement
+   - Decision: Application-level enforcement (JWT user_id validation)
+   - Rationale: Explicit control, clear error messages, testable
+
+5. **Password Hashing**
+   - Research: bcrypt vs argon2 vs passlib
+   - Decision: Use bcrypt with passlib wrapper
+   - Rationale: Industry standard, FastAPI ecosystem compatibility
+
+6. **Frontend State Management**
+   - Research: JWT storage options (localStorage, cookies, session)
+   - Decision: Better Auth session management (httpOnly cookies where possible)
+   - Rationale: XSS protection, built-in token refresh
+
+7. **Error Handling & HTTP Status Codes**
+   - Research: RESTful error response patterns
+   - Decision: Use RFC 7807 Problem Details (detail, error_code, status_code)
+   - Rationale: Consistent client-side error handling
+
+### Research Output
+
+All research tasks resolved. Key decisions documented above. Ready for Phase 1 design.
+
+---
+
+## Phase 1: Design Artifacts
+
+### 1. Data Model (data-model.md)
+
+**User Entity**
+- `id` (UUID, primary key)
+- `email` (string, unique, indexed)
+- `hashed_password` (string)
+- `created_at` (timestamp)
+
+**Task Entity**
+- `id` (UUID, primary key)
+- `user_id` (UUID, foreign key → users.id, indexed)
+- `title` (string, max 200 chars, required)
+- `description` (string, max 1000 chars, optional)
+- `completed` (boolean, default false)
+- `created_at` (timestamp)
+- `updated_at` (timestamp)
+
+**Relationships**
+- User → Task: one-to-many
+- Task → User: many-to-one (required, non-null)
+
+**Constraints**
+- Task ownership immutable after creation
+- user_id index for fast filtering
+- Cascade: deleting user deletes all tasks (discussed with product, accepted)
+
+### 2. API Contracts (contracts/)
+
+See `contracts/openapi.yaml` for full specification.
+
+**Authentication Endpoints**
+
+```
+POST /api/auth/sign-up
+Request: { email: string, password: string }
+Response: { user_id: string, token: string }
+Errors: 400 (validation), 409 (email exists)
+
+POST /api/auth/sign-in
+Request: { email: string, password: string }
+Response: { user_id: string, token: string }
+Errors: 401 (invalid credentials)
+```
+
+**Task Endpoints (All require JWT in Authorization header)**
+
+```
+GET /api/{user_id}/tasks
+Response: { tasks: Task[] }
+Errors: 401 (no token), 403 (user_id mismatch)
+
+POST /api/{user_id}/tasks
+Request: { title: string, description?: string }
+Response: { task: Task }
+Errors: 400 (validation), 401, 403
+
+GET /api/{user_id}/tasks/{task_id}
+Response: { task: Task }
+Errors: 401, 403, 404 (not found or not owned)
+
+PATCH /api/{user_id}/tasks/{task_id}
+Request: { title?: string, description?: string, completed?: boolean }
+Response: { task: Task }
+Errors: 400, 401, 403, 404
+
+DELETE /api/{user_id}/tasks/{task_id}
+Response: 204 No Content
+Errors: 401, 403, 404
+```
+
+### 3. Security Architecture
+
+**JWT Structure**
+```json
+{
+  "sub": "user-uuid-here",
+  "exp": 1234567890,
+  "iat": 1234567890
+}
+```
+
+**Validation Layers**
+1. API Layer: Extract and verify JWT signature
+2. Application Layer: Validate user_id from JWT matches URL parameter
+3. Service Layer: Enforce task ownership on all operations
+
+**Defense in Depth**
+- HTTPS in production (TLS termination)
+- Password hashing with bcrypt (cost factor 12)
+- JWT expiration enforced (24 hours)
+- User ID mismatch returns 403 (not 404 to avoid enumeration)
+- Input validation with Pydantic/Zod
+
+### 4. Testing Strategy
+
+**Backend Tests**
+
+*Unit Tests*
+- Task domain: ownership rules, validation
+- Auth service: JWT generation, verification
+- Task service: authorization checks
+
+*Integration Tests*
+- Auth API: sign-up, sign-in, token issuance
+- Task API: CRUD with auth, user isolation
+- Database: persistence, relationships
+
+**Frontend Tests**
+
+*Unit Tests*
+- API client: JWT attachment, error handling
+- Components: form validation, UI behavior
+
+*Integration Tests*
+- Auth flow: sign-up → sign-in → token storage
+- Task management: create → list → update → delete
+- User isolation: verify User A can't see User B's tasks
+
+### 5. Quickstart Guide (quickstart.md)
+
+To be generated with:
+- Backend setup: virtualenv, dependencies, database migration, .env config
+- Frontend setup: npm install, .env.local config, dev server
+- Testing: pytest, vitest commands
+- Local development workflow
+
+---
+
+## Phase 2: Architecture Decision Records (ADRs)
+
+### Significant Decisions Detected
+
+1. **JWT-Based Stateless Authentication**
+   - Impact: Long-term architectural choice
+   - Alternatives: Session-based auth, OAuth delegation
+   - Recommendation: Document via `/sp.adr jwt-stateless-auth`
+
+2. **Clean Architecture Layering (Backend)**
+   - Impact: Code organization, testing strategy
+   - Alternatives: Flat structure, MVC pattern
+   - Recommendation: Document via `/sp.adr backend-layered-architecture`
+
+3. **User Isolation Enforcement Strategy**
+   - Impact: Security model, performance
+   - Alternatives: Row-level security, separate schemas
+   - Recommendation: Document via `/sp.adr application-level-user-isolation`
 
 ---
 
 ## Implementation Phases
 
-### Phase 0: Research & Planning ✅ COMPLETE
-- ✅ Technology research (Better Auth, SQLModel, Neon)
-- ✅ Architecture design (JWKS-based auth, unified database)
-- ✅ Created: `research.md`, `data-model.md`, `contracts/openapi.yaml`, `quickstart.md`, `plan.md`
+### Phase 1: Backend Foundation
+1. Setup FastAPI project structure
+2. Configure SQLModel with Neon PostgreSQL
+3. Implement User model (email, hashed_password)
+4. Implement Task model (with user_id FK)
+5. Create database migration scripts (Alembic)
+6. Setup pytest fixtures and test database
 
-### Phase 1: Database Setup
-**Goal**: Neon PostgreSQL operational with Better Auth tables + tasks table
+### Phase 2: Authentication
+1. Implement password hashing (bcrypt)
+2. Implement JWT generation and verification
+3. Create sign-up endpoint (POST /api/auth/sign-up)
+4. Create sign-in endpoint (POST /api/auth/sign-in)
+5. Create JWT dependency for protected routes
+6. Write auth integration tests
 
-**Tasks**:
-1. Create Neon database (dashboard)
-2. Configure environment variables (backend + frontend `.env`)
-3. Run Better Auth migrations: `npx @better-auth/cli migrate`
-4. Implement `backend/src/infrastructure/database.py` (SQLModel engine)
-5. Create SQLModel Task model with `user_id` FK
-6. Implement auto-migration on startup (`SQLModel.metadata.create_all`)
-7. Verify schema in Neon dashboard
+### Phase 3: Task CRUD API
+1. Implement task service (authorization logic)
+2. Create task endpoints (GET /api/{user_id}/tasks, etc.)
+3. Enforce user_id validation in all endpoints
+4. Write task API integration tests
+5. Test user isolation (User A can't access User B's tasks)
 
-**Acceptance**: Backend connects to database, all tables exist, no errors on startup
+### Phase 4: Frontend Foundation
+1. Setup Next.js 14 with App Router
+2. Configure Better Auth with JWT plugin
+3. Create auth pages (sign-up, sign-in)
+4. Implement API client with JWT interceptor
+5. Create protected route middleware
 
-### Phase 2: Backend Authentication
-**Goal**: FastAPI verifies JWT tokens via JWKS
+### Phase 5: Task UI
+1. Create task list page
+2. Create task detail page
+3. Create task form (new/edit)
+4. Implement task completion toggle
+5. Implement task deletion with confirmation
+6. Write frontend integration tests
 
-**Tasks**:
-1. Implement `api/middleware/jwks_client.py` (fetch/cache JWKS)
-2. Implement `api/middleware/auth.py` (JWT verification)
-3. Create `api/dependencies.py` (get_current_user, verify_user_id)
-4. Update API routes to require authentication
-5. Add authorization checks (user_id validation)
-6. Update error responses (401, 403)
-7. Write authentication tests
-
-**Acceptance**: JWT verified, 401 for invalid tokens, 403 for user_id mismatch
-
-### Phase 3: Backend Database Integration
-**Goal**: Tasks persist to PostgreSQL with user isolation
-
-**Tasks**:
-1. Implement `infrastructure/sqlmodel_task_repository.py`
-2. Update TaskService (add `user_id` to all methods)
-3. Update Task entity (add `user_id`, timestamps)
-4. Replace in-memory repository with SQLModel repository
-5. Configure connection pooling
-6. Write database integration tests
-
-**Acceptance**: Tasks persist across restarts, user isolation enforced, tests pass
-
-### Phase 4: Frontend Authentication
-**Goal**: Users can sign up/in, JWT stored and sent to backend
-
-**Tasks**:
-1. Install Better Auth: `npm install better-auth`
-2. Configure Better Auth (`lib/auth.ts`, `lib/auth-client.ts`)
-3. Create Better Auth API route (`app/api/auth/[...all]/route.ts`)
-4. Implement `useAuth` hook
-5. Create sign-in/sign-up pages
-6. Create AuthGuard component
-7. Update app layout with auth provider
-
-**Acceptance**: Users sign up/in, JWT issued, stored in sessionStorage, sign-out works
-
-### Phase 5: Frontend API Integration
-**Goal**: Frontend sends JWT, handles auth errors
-
-**Tasks**:
-1. Update API client to inject JWT header
-2. Update `useTasks` hook (handle 401 → redirect, 403 → error message)
-3. Update API calls to include `user_id` in URL
-4. Test multi-user isolation in UI
-
-**Acceptance**: API requests authenticated, 401 redirects to sign-in, User A can't see User B's tasks
-
-### Phase 6: Testing & Documentation
-**Goal**: Comprehensive tests, complete documentation
-
-**Tasks**:
-1. Write backend tests (unit, integration, API)
-2. Write frontend tests (authentication flow)
-3. End-to-end testing (all user stories)
-4. Update READMEs (backend, frontend, root)
-5. Validate quickstart guide
-
-**Acceptance**: >80% test coverage, all user stories pass, quickstart works from scratch
+### Phase 6: Integration & Testing
+1. End-to-end testing (auth + tasks)
+2. User isolation verification tests
+3. Error handling tests (401, 403, 404)
+4. Performance testing (100 tasks load time)
+5. Security audit (JWT validation, password hashing)
 
 ---
 
-## Testing Strategy
+## Dependencies & Prerequisites
 
-### Backend Tests
+### External Services
+- Neon PostgreSQL account and database URL
+- Environment variables configured (JWT_SECRET, DATABASE_URL)
 
-**Unit Tests** (`tests/unit/`):
-- Domain: Task entity validation, user_id required
-- Application: TaskService authorization logic
-
-**Integration Tests** (`tests/integration/`):
-- Database: SQLModel repository operations, user isolation
-- Transactions: Rollback on errors
-
-**API Tests** (`tests/api/`):
-- Authentication: Valid/invalid/expired JWT handling
-- Authorization: User A can't access User B's tasks
-- CRUD: All task operations with auth headers
-
-**Fixtures** (`tests/conftest.py`):
-- Test database session
-- Test users
-- Valid/expired JWT tokens
-- Task factories
-
-### Frontend Tests
-
-**Hook Tests** (`hooks/__tests__/`):
-- `useAuth`: Sign up, sign in, sign out, JWT storage
-- `useTasks`: Auth error handling (401, 403)
-
-**Component Tests** (`components/__tests__/`):
-- SignInForm: Form validation, submission
-- AuthGuard: Redirect unauthenticated users
+### Development Tools
+- Python 3.11+, pip, virtualenv
+- Node.js 18+, npm/pnpm
+- PostgreSQL client (psql) for debugging
+- Postman/curl for API testing
 
 ---
 
-## Security Guarantees
+## Success Criteria
 
-### Authentication
-- ✅ JWT signed with asymmetric keys (ES256/RS256)
-- ✅ JWKS-based verification (supports key rotation)
-- ✅ 24-hour token expiration
-- ✅ Passwords hashed with bcrypt (Better Auth)
-- ✅ Session cookies httpOnly + secure (production)
+This plan is complete when:
+- ✅ All research tasks resolved (Phase 0)
+- ✅ Data model documented (Phase 1)
+- ✅ API contracts defined (Phase 1)
+- ✅ Security architecture documented (Phase 1)
+- ✅ Testing strategy defined (Phase 1)
+- ✅ Quickstart guide generated (Phase 1)
+- ✅ ADR suggestions made for significant decisions (Phase 2)
 
-### Authorization
-- ✅ Multi-layer user isolation (API, service, repository, database)
-- ✅ Path `user_id` validated against JWT `user_id`
-- ✅ Repository filters all queries by `user_id`
-- ✅ Foreign key constraints enforce referential integrity
-
-### Transport
-- ⚠️ HTTP in local development (acceptable)
-- ✅ HTTPS required in production (Vercel automatic)
-- ✅ CORS configured (allow localhost:3000)
-
-### Database
-- ✅ Parameterized queries (SQLModel default)
-- ✅ SSL/TLS connections (Neon sslmode=require)
-- ✅ Connection pooling limits
-- ✅ Credentials in environment variables
+Next command: `/sp.tasks` to generate implementation tasks from this plan.
 
 ---
 
-## Environment Configuration
+## Architectural Decision Suggestions
 
-### Backend `.env`
-```bash
-DATABASE_URL=postgresql://user:pass@ep-xxx.neon.tech/db?sslmode=require
-JWKS_URL=http://localhost:3000/api/auth/jwks
-BETTER_AUTH_ISSUER=http://localhost:3000
-FRONTEND_URL=http://localhost:3000
-DEBUG=true
+📋 **Architectural decision detected: JWT-Based Stateless Authentication**
+
+This is a long-term architectural choice that affects how authentication state is managed across the system. Alternative approaches (session-based auth, OAuth delegation) were considered and rejected.
+
+**Recommendation**: Document reasoning and tradeoffs with:
 ```
-
-### Frontend `.env.local`
-```bash
-BETTER_AUTH_SECRET=<generated-32-char-secret>
-BETTER_AUTH_URL=http://localhost:3000
-DATABASE_URL=postgresql://user:pass@ep-xxx.neon.tech/db?sslmode=require
-NEXT_PUBLIC_BACKEND_API_URL=http://localhost:8000
-NODE_ENV=development
+/sp.adr jwt-stateless-authentication
 ```
 
 ---
 
-## Success Criteria Mapping
+📋 **Architectural decision detected: Clean Architecture Layering (Backend)**
 
-### From Specification
+The backend follows a layered architecture (domain → application → infrastructure → api) that influences code organization, testing strategy, and maintainability.
 
-✅ **SC-001**: 100% of API requests without valid JWT rejected (401)  
-✅ **SC-002**: 100% of cross-user access attempts blocked (403)  
-✅ **SC-003**: Passwords never stored in plaintext (bcrypt hashing)  
-✅ **SC-004**: Users can sign up, sign in, access tasks within 2 minutes  
-✅ **SC-005**: Tasks persist across sessions (PostgreSQL)  
-✅ **SC-006**: Each user sees only their own tasks (user isolation)  
-✅ **SC-007**: CRUD operations work without errors  
-✅ **SC-008**: JWT expiration handled correctly (401 → redirect)  
-✅ **SC-009**: Task list loads < 2 seconds (up to 100 tasks)  
-✅ **SC-010**: New users complete first task within 3 minutes  
-✅ **SC-011**: Clear, actionable error messages  
-✅ **SC-012**: Zero data loss (PostgreSQL ACID guarantees)  
-✅ **SC-013**: Task ownership immutable (user_id cannot change)  
-✅ **SC-014**: Concurrent requests handled correctly (transactions)  
+**Recommendation**: Document reasoning and tradeoffs with:
+```
+/sp.adr backend-clean-architecture
+```
 
 ---
 
-## Documentation Artifacts
+📋 **Architectural decision detected: Application-Level User Isolation**
 
-All documentation for this feature is in `specs/003-web-auth-db/`:
+User isolation is enforced at the application layer rather than using database-level row-level security. This affects security model, performance, and testing approach.
 
-1. **`spec.md`** - Feature specification (WHAT to build)
-2. **`plan.md`** - This file (HOW to build it)
-3. **`research.md`** - Technology research & decisions
-4. **`data-model.md`** - Database schema & entities
-5. **`contracts/openapi.yaml`** - Complete API specification
-6. **`quickstart.md`** - Setup & testing guide (15-20 min)
-7. **`checklists/requirements.md`** - Acceptance criteria
+**Recommendation**: Document reasoning and tradeoffs with:
+```
+/sp.adr application-level-user-isolation
+```
 
 ---
 
-## Next Steps
+## Plan Completion Status
 
-**This plan is complete and ready for task breakdown.**
+✅ Phase 0: Research completed (research.md)
+✅ Phase 1: Data model documented (data-model.md)
+✅ Phase 1: API contracts defined (contracts/openapi.yaml with auth endpoints)
+✅ Phase 1: Quickstart guide generated (quickstart.md)
+✅ Phase 1: Agent context updated (CLAUDE.md)
+✅ Phase 2: ADR suggestions documented (3 significant decisions identified)
 
-Run: `/sp.tasks`
-
-This will generate a detailed task list (`tasks.md`) breaking down each implementation phase into atomic, testable tasks with:
-- Task IDs (T001, T002, etc.)
-- Clear descriptions
-- File paths
-- Dependencies (sequential vs parallel)
-- Acceptance criteria
-- Test requirements
-
-**After `/sp.tasks` completes**, you can run `/sp.implement` to execute the implementation with specialized sub-agents (backend-sub-agent, frontend-react-nextjs).
-
----
-
-**Plan Status**: ✅ Complete  
-**Constitution Check**: ✅ All gates passed  
-**Technology Research**: ✅ Complete  
-**Architecture Design**: ✅ Complete  
-**Ready for**: `/sp.tasks` command
+**Status**: Planning phase complete. Ready for `/sp.tasks` to generate implementation tasks.

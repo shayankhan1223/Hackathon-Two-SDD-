@@ -1,273 +1,254 @@
 """
-Task CRUD endpoints for Phase II Web Todo Application.
-
-REST API routes for task management operations.
+Task management endpoints with user isolation.
 """
-
-from fastapi import APIRouter, Depends, HTTPException, status, Request
-from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
-from pydantic import ValidationError
-from typing import Annotated
-
-from src.api.dependencies import get_task_service
-from src.api.models import (
-    CreateTaskRequest,
-    UpdateTaskRequest,
-    TaskResponse,
-    TaskListResponse,
-    ErrorCode
-)
+from fastapi import APIRouter, Depends, HTTPException, status, Path
+from pydantic import BaseModel, Field
+from sqlmodel import Session
+from uuid import UUID
+from typing import List, Optional
+from datetime import datetime
+from src.infrastructure.database import get_session
 from src.application.task_service import TaskService
-from src.application.exceptions import TaskNotFoundError, InvalidTaskDataError
+from src.api.deps import get_current_user
+
+router = APIRouter(prefix="/api", tags=["Tasks"])
 
 
-router = APIRouter(prefix="/tasks", tags=["Tasks"])
+# Request/Response Models
+class CreateTaskRequest(BaseModel):
+    """Request to create a new task."""
+
+    title: str = Field(..., min_length=1, max_length=200, description="Task title")
+    description: Optional[str] = Field(None, max_length=1000, description="Task description")
 
 
-@router.post(
-    "",
-    response_model=TaskResponse,
-    status_code=status.HTTP_201_CREATED,
-    responses={
-        201: {"description": "Task created successfully"},
-        400: {"description": "Invalid input data"},
-        422: {"description": "Validation error"},
-        500: {"description": "Internal server error"}
-    }
-)
-async def create_task(
-    task_data: CreateTaskRequest,
-    service: Annotated[TaskService, Depends(get_task_service)]
-) -> TaskResponse:
-    """Create a new task."""
-    try:
-        task = service.create_task(
-            title=task_data.title,
-            description=task_data.description
+class UpdateTaskRequest(BaseModel):
+    """Request to update a task."""
+
+    title: Optional[str] = Field(None, min_length=1, max_length=200, description="Task title")
+    description: Optional[str] = Field(None, max_length=1000, description="Task description")
+    completed: Optional[bool] = Field(None, description="Task completion status")
+
+
+class TaskResponse(BaseModel):
+    """Task response model."""
+
+    id: UUID
+    user_id: UUID
+    title: str
+    description: str
+    completed: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TaskListResponse(BaseModel):
+    """Response with list of tasks."""
+
+    tasks: List[TaskResponse]
+    count: int
+
+
+# Helper function
+def validate_user_id_match(path_user_id: UUID, jwt_user_id: UUID):
+    """
+    Validate that user_id in path matches user_id from JWT.
+
+    Raises:
+        403: If user_id mismatch
+    """
+    if path_user_id != jwt_user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot access another user's resources",
         )
-        return TaskResponse(
-            id=str(task.id),
-            title=task.title,
-            description=task.description,
-            completed=task.completed
-        )
-    except InvalidTaskDataError as e:
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content={
-                "detail": str(e),
-                "error_code": ErrorCode.INVALID_TASK_DATA.value,
-                "status_code": status.HTTP_400_BAD_REQUEST
-            }
-        )
 
 
-@router.get(
-    "",
-    response_model=TaskListResponse,
-    status_code=status.HTTP_200_OK,
-    responses={
-        200: {"description": "Successfully retrieved tasks"},
-        500: {"description": "Internal server error"}
-    }
-)
+# Endpoints
+@router.get("/{user_id}/tasks", response_model=TaskListResponse)
 async def list_tasks(
-    service: Annotated[TaskService, Depends(get_task_service)]
-) -> TaskListResponse:
-    """Retrieve all tasks."""
-    tasks = service.list_tasks()
+    user_id: UUID = Path(..., description="User ID"),
+    current_user_id: UUID = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """
+    List all tasks for authenticated user.
+
+    Args:
+        user_id: User ID from path (must match JWT user_id)
+        current_user_id: User ID from JWT token
+        session: Database session
+
+    Returns:
+        List of user's tasks
+
+    Raises:
+        401: Missing or invalid JWT
+        403: user_id mismatch
+    """
+    validate_user_id_match(user_id, current_user_id)
+
+    task_service = TaskService(session)
+    tasks = task_service.get_user_tasks(user_id)
+
     return TaskListResponse(
-        tasks=[
-            TaskResponse(
-                id=str(task.id),
-                title=task.title,
-                description=task.description,
-                completed=task.completed
-            )
-            for task in tasks
-        ],
-        count=len(tasks)
+        tasks=[TaskResponse.model_validate(task) for task in tasks], count=len(tasks)
     )
 
 
-@router.get(
-    "/{task_id}",
-    response_model=TaskResponse,
-    status_code=status.HTTP_200_OK,
-    responses={
-        200: {"description": "Task retrieved successfully"},
-        404: {"description": "Task not found"},
-        422: {"description": "Validation error"},
-        500: {"description": "Internal server error"}
-    }
-)
+@router.post("/{user_id}/tasks", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
+async def create_task(
+    request: CreateTaskRequest,
+    user_id: UUID = Path(..., description="User ID"),
+    current_user_id: UUID = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """
+    Create a new task for authenticated user.
+
+    Args:
+        request: Task creation request
+        user_id: User ID from path (must match JWT user_id)
+        current_user_id: User ID from JWT token
+        session: Database session
+
+    Returns:
+        Created task
+
+    Raises:
+        400: Validation error
+        401: Missing or invalid JWT
+        403: user_id mismatch
+    """
+    validate_user_id_match(user_id, current_user_id)
+
+    task_service = TaskService(session)
+    task = task_service.create_task(
+        user_id=user_id, title=request.title, description=request.description
+    )
+
+    return TaskResponse.model_validate(task)
+
+
+@router.get("/{user_id}/tasks/{task_id}", response_model=TaskResponse)
 async def get_task(
-    task_id: str,
-    service: Annotated[TaskService, Depends(get_task_service)]
-) -> TaskResponse:
-    """Retrieve a specific task by ID."""
-    try:
-        task = service.get_task(task_id)
-        return TaskResponse(
-            id=str(task.id),
-            title=task.title,
-            description=task.description,
-            completed=task.completed
-        )
-    except TaskNotFoundError as e:
-        return JSONResponse(
+    user_id: UUID = Path(..., description="User ID"),
+    task_id: UUID = Path(..., description="Task ID"),
+    current_user_id: UUID = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """
+    Get a specific task by ID.
+
+    Args:
+        user_id: User ID from path (must match JWT user_id)
+        task_id: Task ID
+        current_user_id: User ID from JWT token
+        session: Database session
+
+    Returns:
+        Task details
+
+    Raises:
+        401: Missing or invalid JWT
+        403: user_id mismatch
+        404: Task not found or not owned by user
+    """
+    validate_user_id_match(user_id, current_user_id)
+
+    task_service = TaskService(session)
+    task = task_service.get_task_by_id(task_id, user_id)
+
+    if not task:
+        raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            content={
-                "detail": str(e),
-                "error_code": ErrorCode.TASK_NOT_FOUND.value,
-                "status_code": status.HTTP_404_NOT_FOUND
-            }
-        )
-    except InvalidTaskDataError as e:
-        return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            content={
-                "detail": str(e),
-                "error_code": ErrorCode.INVALID_TASK_DATA.value,
-                "status_code": status.HTTP_422_UNPROCESSABLE_ENTITY
-            }
+            detail="Task not found",
         )
 
+    return TaskResponse.model_validate(task)
 
-@router.put(
-    "/{task_id}",
-    response_model=TaskResponse,
-    status_code=status.HTTP_200_OK,
-    responses={
-        200: {"description": "Task updated successfully"},
-        400: {"description": "Invalid input data"},
-        404: {"description": "Task not found"},
-        422: {"description": "Validation error"},
-        500: {"description": "Internal server error"}
-    }
-)
+
+@router.put("/{user_id}/tasks/{task_id}", response_model=TaskResponse)
 async def update_task(
-    task_id: str,
-    task_data: UpdateTaskRequest,
-    service: Annotated[TaskService, Depends(get_task_service)]
-) -> TaskResponse:
-    """Update a task's title and/or description."""
-    try:
-        task = service.update_task(
-            task_id=task_id,
-            title=task_data.title,
-            description=task_data.description
-        )
-        return TaskResponse(
-            id=str(task.id),
-            title=task.title,
-            description=task.description,
-            completed=task.completed
-        )
-    except TaskNotFoundError as e:
-        return JSONResponse(
+    request: UpdateTaskRequest,
+    user_id: UUID = Path(..., description="User ID"),
+    task_id: UUID = Path(..., description="Task ID"),
+    current_user_id: UUID = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """
+    Update a task.
+
+    Args:
+        request: Task update request
+        user_id: User ID from path (must match JWT user_id)
+        task_id: Task ID
+        current_user_id: User ID from JWT token
+        session: Database session
+
+    Returns:
+        Updated task
+
+    Raises:
+        400: Validation error
+        401: Missing or invalid JWT
+        403: user_id mismatch
+        404: Task not found or not owned by user
+    """
+    validate_user_id_match(user_id, current_user_id)
+
+    task_service = TaskService(session)
+    task = task_service.update_task(
+        task_id=task_id,
+        user_id=user_id,
+        title=request.title,
+        description=request.description,
+        completed=request.completed,
+    )
+
+    if not task:
+        raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            content={
-                "detail": str(e),
-                "error_code": ErrorCode.TASK_NOT_FOUND.value,
-                "status_code": status.HTTP_404_NOT_FOUND
-            }
-        )
-    except InvalidTaskDataError as e:
-        # Invalid UUID format → 422, invalid field values → 400
-        error_msg = str(e)
-        status_code = (
-            status.HTTP_422_UNPROCESSABLE_ENTITY
-            if "Invalid task ID format" in error_msg
-            else status.HTTP_400_BAD_REQUEST
-        )
-        return JSONResponse(
-            status_code=status_code,
-            content={
-                "detail": error_msg,
-                "error_code": ErrorCode.INVALID_TASK_DATA.value,
-                "status_code": status_code
-            }
+            detail="Task not found",
         )
 
+    return TaskResponse.model_validate(task)
 
-@router.delete(
-    "/{task_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    responses={
-        204: {"description": "Task deleted successfully"},
-        404: {"description": "Task not found"},
-        422: {"description": "Validation error"},
-        500: {"description": "Internal server error"}
-    }
-)
+
+@router.delete("/{user_id}/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_task(
-    task_id: str,
-    service: Annotated[TaskService, Depends(get_task_service)]
-) -> None:
-    """Delete a task permanently."""
-    try:
-        service.delete_task(task_id)
-    except TaskNotFoundError as e:
-        return JSONResponse(
-            status_code=status.HTTP_404_NOT_FOUND,
-            content={
-                "detail": str(e),
-                "error_code": ErrorCode.TASK_NOT_FOUND.value,
-                "status_code": status.HTTP_404_NOT_FOUND
-            }
-        )
-    except InvalidTaskDataError as e:
-        return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            content={
-                "detail": str(e),
-                "error_code": ErrorCode.INVALID_TASK_DATA.value,
-                "status_code": status.HTTP_422_UNPROCESSABLE_ENTITY
-            }
-        )
+    user_id: UUID = Path(..., description="User ID"),
+    task_id: UUID = Path(..., description="Task ID"),
+    current_user_id: UUID = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """
+    Delete a task.
 
+    Args:
+        user_id: User ID from path (must match JWT user_id)
+        task_id: Task ID
+        current_user_id: User ID from JWT token
+        session: Database session
 
-@router.patch(
-    "/{task_id}/complete",
-    response_model=TaskResponse,
-    status_code=status.HTTP_200_OK,
-    responses={
-        200: {"description": "Task completion status toggled"},
-        404: {"description": "Task not found"},
-        422: {"description": "Validation error"},
-        500: {"description": "Internal server error"}
-    }
-)
-async def toggle_task_completion(
-    task_id: str,
-    service: Annotated[TaskService, Depends(get_task_service)]
-) -> TaskResponse:
-    """Toggle task completion status."""
-    try:
-        task = service.complete_task(task_id)
-        return TaskResponse(
-            id=str(task.id),
-            title=task.title,
-            description=task.description,
-            completed=task.completed
-        )
-    except TaskNotFoundError as e:
-        return JSONResponse(
+    Returns:
+        204 No Content on success
+
+    Raises:
+        401: Missing or invalid JWT
+        403: user_id mismatch
+        404: Task not found or not owned by user
+    """
+    validate_user_id_match(user_id, current_user_id)
+
+    task_service = TaskService(session)
+    deleted = task_service.delete_task(task_id, user_id)
+
+    if not deleted:
+        raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            content={
-                "detail": str(e),
-                "error_code": ErrorCode.TASK_NOT_FOUND.value,
-                "status_code": status.HTTP_404_NOT_FOUND
-            }
-        )
-    except InvalidTaskDataError as e:
-        return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            content={
-                "detail": str(e),
-                "error_code": ErrorCode.INVALID_TASK_DATA.value,
-                "status_code": status.HTTP_422_UNPROCESSABLE_ENTITY
-            }
+            detail="Task not found",
         )

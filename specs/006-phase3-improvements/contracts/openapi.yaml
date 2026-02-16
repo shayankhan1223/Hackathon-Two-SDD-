@@ -1,0 +1,203 @@
+openapi: 3.1.0
+info:
+  title: Phase III Improvements - New Endpoints
+  version: 1.0.0
+  description: |
+    New and updated API endpoints for Phase III improvements.
+    Existing endpoints (auth/register, auth/login, auth/me, tasks/*, tags/*, calendar/*, chat) remain unchanged.
+
+paths:
+  /api/auth/forgot-password:
+    post:
+      summary: Request password reset
+      description: |
+        Sends a password reset email if the email is registered.
+        Always returns 200 regardless of whether email exists (prevents enumeration).
+      operationId: forgotPassword
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        "200":
+          description: Reset request acknowledged
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "If an account exists with this email, a reset link has been sent."
+        "422":
+          description: Validation error
+
+  /api/auth/reset-password:
+    post:
+      summary: Reset password with token
+      description: Validates reset token and updates user password.
+      operationId: resetPassword
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, new_password]
+              properties:
+                token:
+                  type: string
+                  description: Raw reset token from email link
+                new_password:
+                  type: string
+                  minLength: 8
+      responses:
+        "200":
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Password has been reset successfully."
+        "400":
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: string
+                    example: "Invalid or expired reset token."
+
+  /api/auth/change-password:
+    post:
+      summary: Change password (authenticated)
+      description: Allows authenticated user to change their password.
+      operationId: changePassword
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, new_password]
+              properties:
+                current_password:
+                  type: string
+                new_password:
+                  type: string
+                  minLength: 8
+      responses:
+        "200":
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Password changed successfully."
+        "400":
+          description: Current password incorrect
+        "401":
+          description: Not authenticated
+
+  /api/user/preferences:
+    get:
+      summary: Get user preferences
+      description: Returns the authenticated user's preferences. Creates defaults if none exist.
+      operationId: getPreferences
+      tags: [User]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: User preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPreferences"
+        "401":
+          description: Not authenticated
+
+    patch:
+      summary: Update user preferences
+      description: Partially updates the authenticated user's preferences.
+      operationId: updatePreferences
+      tags: [User]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                display_name:
+                  type: string
+                  maxLength: 100
+                  nullable: true
+                timezone:
+                  type: string
+                  description: IANA timezone (e.g., "America/New_York")
+                theme:
+                  type: string
+                  enum: [light, dark, system]
+                email_notifications:
+                  type: boolean
+                push_notifications:
+                  type: boolean
+      responses:
+        "200":
+          description: Updated preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPreferences"
+        "401":
+          description: Not authenticated
+        "422":
+          description: Validation error
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    UserPreferences:
+      type: object
+      properties:
+        display_name:
+          type: string
+          nullable: true
+        timezone:
+          type: string
+          example: "America/New_York"
+        theme:
+          type: string
+          enum: [light, dark, system]
+        email_notifications:
+          type: boolean
+        push_notifications:
+          type: boolean

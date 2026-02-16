@@ -1,0 +1,37 @@
+"""
+Pytest configuration and shared fixtures.
+"""
+import pytest
+from fastapi.testclient import TestClient
+from sqlmodel import Session, create_engine, SQLModel
+from sqlmodel.pool import StaticPool
+from src.api.main import app
+from src.infrastructure.database import get_session
+
+
+@pytest.fixture(name="session")
+def session_fixture():
+    """
+    Create an in-memory SQLite database for testing.
+    """
+    engine = create_engine(
+        "sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    SQLModel.metadata.create_all(engine)
+    with Session(engine) as session:
+        yield session
+
+
+@pytest.fixture(name="client")
+def client_fixture(session: Session):
+    """
+    Create a test client with dependency override for database session.
+    """
+
+    def get_session_override():
+        return session
+
+    app.dependency_overrides[get_session] = get_session_override
+    client = TestClient(app)
+    yield client
+    app.dependency_overrides.clear()

@@ -1,15 +1,39 @@
 'use client';
 
-import { useState } from 'react';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { api } from '@/lib/api';
+import { toast } from 'react-hot-toast';
+import { TaskCreationModal } from '@/components/TaskCreationModal';
+import type { TaskResponse } from '@/lib/types';
 
 export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [showAddEventModal, setShowAddEventModal] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [tasks, setTasks] = useState<TaskResponse[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Mock data for the calendar
+  const fetchTasks = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await api.tasks.list();
+      setTasks(response.tasks);
+    } catch (err) {
+      console.error('Failed to fetch tasks for calendar:', err);
+      toast.error('Failed to load calendar events');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTasks();
+  }, [fetchTasks]);
+
   const daysInMonth = new Date(
     currentDate.getFullYear(),
     currentDate.getMonth() + 1,
@@ -54,26 +78,51 @@ export default function CalendarPage() {
     return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   };
 
-  // Mock tasks for the calendar
-  const getTasksForDay = (day: number) => {
-    if (day === 15) {
-      return [
-        { id: '1', title: 'Team Meeting', time: '10:00 AM', priority: 'high' },
-        { id: '2', title: 'Project Deadline', time: '5:00 PM', priority: 'high' },
-      ];
-    }
-    if (day === 20) {
-      return [
-        { id: '3', title: 'Client Call', time: '2:30 PM', priority: 'medium' },
-      ];
-    }
-    if (day === 25) {
-      return [
-        { id: '4', title: 'Review PRs', time: '9:00 AM', priority: 'low' },
-      ];
-    }
-    return [];
+  const handleAddEventClick = (day: number) => {
+    const selectedDateObj = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+    setSelectedDate(selectedDateObj);
+    setShowAddEventModal(true);
   };
+
+  const handleTaskCreated = () => {
+    fetchTasks();
+  };
+
+  const getTasksForDay = (day: number) => {
+    return tasks.filter((task) => {
+      if (!task.due_date) return false;
+      const dueDate = new Date(task.due_date);
+      return (
+        dueDate.getFullYear() === currentDate.getFullYear() &&
+        dueDate.getMonth() === currentDate.getMonth() &&
+        dueDate.getDate() === day
+      );
+    });
+  };
+
+  const getUpcomingTasks = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return tasks
+      .filter((task) => {
+        if (!task.due_date) return false;
+        const dueDate = new Date(task.due_date);
+        dueDate.setHours(0, 0, 0, 0);
+        return dueDate >= today;
+      })
+      .sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())
+      .slice(0, 10);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  const upcomingTasks = getUpcomingTasks();
 
   return (
     <div className="space-y-6">
@@ -92,7 +141,7 @@ export default function CalendarPage() {
           <Button variant="outline" size="sm" onClick={nextMonth}>
             <ChevronRight className="h-4 w-4" />
           </Button>
-          <Button size="sm" leftIcon={<Plus className="h-4 w-4" />}>
+          <Button size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={() => handleAddEventClick(new Date().getDate())}>
             Add Event
           </Button>
         </div>
@@ -116,7 +165,7 @@ export default function CalendarPage() {
               return <div key={index} className="aspect-square" />;
             }
 
-            const tasks = getTasksForDay(day);
+            const dayTasks = getTasksForDay(day);
             const isToday =
               day === new Date().getDate() &&
               currentDate.getMonth() === new Date().getMonth() &&
@@ -125,11 +174,12 @@ export default function CalendarPage() {
             return (
               <div
                 key={index}
-                className={`aspect-square p-1 border rounded-lg ${
+                className={`aspect-square p-1 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 ${
                   isToday
                     ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                     : 'border-gray-200 dark:border-gray-700'
                 }`}
+                onClick={() => handleAddEventClick(day)}
               >
                 <div className="flex justify-between items-start p-1">
                   <span
@@ -144,20 +194,20 @@ export default function CalendarPage() {
                 </div>
 
                 <div className="space-y-1 mt-1">
-                  {tasks.slice(0, 2).map((task) => (
+                  {dayTasks.slice(0, 2).map((task) => (
                     <div
                       key={task.id}
                       className="p-1 rounded text-xs truncate bg-gray-100 dark:bg-gray-800"
                     >
                       <div className="font-medium truncate">{task.title}</div>
                       <div className="text-gray-500 dark:text-gray-400">
-                        {task.time}
+                        {task.priority}
                       </div>
                     </div>
                   ))}
-                  {tasks.length > 2 && (
+                  {dayTasks.length > 2 && (
                     <div className="text-xs text-gray-500 dark:text-gray-400 px-1">
-                      +{tasks.length - 2} more
+                      +{dayTasks.length - 2} more
                     </div>
                   )}
                 </div>
@@ -171,41 +221,53 @@ export default function CalendarPage() {
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
           Upcoming Events
         </h3>
-        <div className="space-y-3">
-          {[
-            { id: '1', title: 'Team Meeting', date: 'Feb 15, 2026', time: '10:00 AM', priority: 'high' },
-            { id: '2', title: 'Project Deadline', date: 'Feb 15, 2026', time: '5:00 PM', priority: 'high' },
-            { id: '3', title: 'Client Call', date: 'Feb 20, 2026', time: '2:30 PM', priority: 'medium' },
-            { id: '4', title: 'Review PRs', date: 'Feb 25, 2026', time: '9:00 AM', priority: 'low' },
-          ].map((event) => (
-            <div
-              key={event.id}
-              className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700 last:border-b-0"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-2 h-2 rounded-full bg-blue-500" />
-                <div>
-                  <div className="font-medium text-gray-900 dark:text-white">
-                    {event.title}
-                  </div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">
-                    {event.date} • {event.time}
+        {upcomingTasks.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <CalendarIcon className="h-12 w-12 text-gray-300 dark:text-gray-600 mb-3" />
+            <p className="text-gray-500 dark:text-gray-400">
+              No upcoming events. Create a task to get started.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {upcomingTasks.map((task) => (
+              <div
+                key={task.id}
+                className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700 last:border-b-0"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-2 h-2 rounded-full bg-blue-500" />
+                  <div>
+                    <div className="font-medium text-gray-900 dark:text-white">
+                      {task.title}
+                    </div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      {new Date(task.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </div>
                   </div>
                 </div>
+                <Badge
+                  variant={
+                    task.priority === 'high' ? 'error' :
+                    task.priority === 'medium' ? 'warning' : 'default'
+                  }
+                  size="sm"
+                >
+                  {task.priority}
+                </Badge>
               </div>
-              <Badge
-                variant={
-                  event.priority === 'high' ? 'error' :
-                  event.priority === 'medium' ? 'warning' : 'default'
-                }
-                size="sm"
-              >
-                {event.priority}
-              </Badge>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </Card>
+
+      {/* Task Creation Modal */}
+      <TaskCreationModal
+        isOpen={showAddEventModal}
+        onClose={() => setShowAddEventModal(false)}
+        selectedDate={selectedDate}
+        onTaskCreated={handleTaskCreated}
+      />
     </div>
   );
 }

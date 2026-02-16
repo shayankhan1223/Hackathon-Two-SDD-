@@ -2,6 +2,7 @@
 
 import ssl
 
+import sqlalchemy
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel
@@ -42,3 +43,20 @@ async def create_all_tables():
 
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
+
+    # Fix existing columns that were created with wrong timezone type
+    async with engine.begin() as conn:
+        await conn.execute(
+            sqlalchemy.text(
+                "ALTER TABLE password_reset_tokens "
+                "ALTER COLUMN expires_at TYPE TIMESTAMP WITH TIME ZONE "
+                "USING expires_at AT TIME ZONE 'UTC'"
+            )
+        )
+        await conn.execute(
+            sqlalchemy.text(
+                "ALTER TABLE password_reset_tokens "
+                "ALTER COLUMN created_at TYPE TIMESTAMP WITH TIME ZONE "
+                "USING created_at AT TIME ZONE 'UTC'"
+            )
+        )
