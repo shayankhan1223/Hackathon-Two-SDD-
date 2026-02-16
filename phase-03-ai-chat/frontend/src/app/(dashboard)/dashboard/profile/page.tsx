@@ -12,7 +12,6 @@ export default function ProfilePage() {
   const [userData, setUserData] = useState({
     id: '',
     email: '',
-    createdAt: ''
   });
 
   useEffect(() => {
@@ -28,7 +27,6 @@ export default function ProfilePage() {
         setUserData({
           id: user.id,
           email: user.email,
-          createdAt: user.createdAt
         });
       } catch (err) {
         console.error('Error fetching user data:', err);
@@ -87,9 +85,7 @@ export default function ProfilePage() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Account Created
                 </label>
-                <p className="text-gray-900 dark:text-gray-100">
-                  {new Date(userData.createdAt).toLocaleDateString()}
-                </p>
+                <p className="text-gray-900 dark:text-gray-100">N/A</p>
               </div>
             </div>
           </div>
