@@ -50,6 +50,9 @@ coverage/
 # Build info
 *.tsbuildinfo
 
+# Vercel
+.vercel/
+
 # Misc
 *.tmp
 *.bak

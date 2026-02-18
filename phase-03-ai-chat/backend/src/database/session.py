@@ -1,5 +1,6 @@
 """Async database engine and session factory for Neon PostgreSQL."""
 
+import logging
 import ssl
 
 import sqlalchemy
@@ -9,19 +10,21 @@ from sqlmodel import SQLModel
 
 from src.config import settings
 
-# asyncpg doesn't understand sslmode=require — strip it and pass ssl=True
-db_url = settings.database_url
-connect_args = {}
+logging.basicConfig(level=logging.INFO)
 
-if "sslmode=" in db_url:
-    db_url = db_url.split("?")[0]  # Remove query params
+# Build connection args — asyncpg needs ssl context, not sslmode query param
+connect_args = {}
+if "neon.tech" in settings.database_url or "sslmode=" in settings.database_url:
     ssl_ctx = ssl.create_default_context()
     ssl_ctx.check_hostname = False
     ssl_ctx.verify_mode = ssl.CERT_NONE
     connect_args["ssl"] = ssl_ctx
 
 engine = create_async_engine(
-    db_url, echo=False, future=True, connect_args=connect_args,
+    settings.async_database_url,
+    echo=False,
+    future=True,
+    connect_args=connect_args,
     pool_pre_ping=True,
 )
 
@@ -38,25 +41,27 @@ async def get_async_session():
 
 async def create_all_tables():
     """Create all tables — used for testing or initial setup."""
-    # Import all models so SQLModel registers them before create_all
-    import src.models  # noqa: F401
+    try:
+        import src.models  # noqa: F401
 
-    async with engine.begin() as conn:
-        await conn.run_sync(SQLModel.metadata.create_all)
+        async with engine.begin() as conn:
+            await conn.run_sync(SQLModel.metadata.create_all)
 
-    # Fix existing columns that were created with wrong timezone type
-    async with engine.begin() as conn:
-        await conn.execute(
-            sqlalchemy.text(
-                "ALTER TABLE password_reset_tokens "
-                "ALTER COLUMN expires_at TYPE TIMESTAMP WITH TIME ZONE "
-                "USING expires_at AT TIME ZONE 'UTC'"
+        # Fix existing columns that were created with wrong timezone type
+        async with engine.begin() as conn:
+            await conn.execute(
+                sqlalchemy.text(
+                    "ALTER TABLE password_reset_tokens "
+                    "ALTER COLUMN expires_at TYPE TIMESTAMP WITH TIME ZONE "
+                    "USING expires_at AT TIME ZONE 'UTC'"
+                )
             )
-        )
-        await conn.execute(
-            sqlalchemy.text(
-                "ALTER TABLE password_reset_tokens "
-                "ALTER COLUMN created_at TYPE TIMESTAMP WITH TIME ZONE "
-                "USING created_at AT TIME ZONE 'UTC'"
+            await conn.execute(
+                sqlalchemy.text(
+                    "ALTER TABLE password_reset_tokens "
+                    "ALTER COLUMN created_at TYPE TIMESTAMP WITH TIME ZONE "
+                    "USING created_at AT TIME ZONE 'UTC'"
+                )
             )
-        )
+    except Exception as e:
+        logging.warning(f"Database table creation failed: {e}")

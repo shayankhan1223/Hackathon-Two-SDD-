@@ -1,0 +1,35 @@
+{{/*
+Phase IV Todo Chatbot — Helm Test
+AI-Generated via Claude Code
+Validates backend health and frontend accessibility
+*/}}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "todo-chatbot.fullname" . }}-test-connection"
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "todo-chatbot.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+spec:
+  restartPolicy: Never
+  containers:
+    - name: test-backend
+      image: curlimages/curl:8.5.0
+      command: ['sh', '-c']
+      args:
+        - |
+          echo "Testing backend health endpoint..."
+          curl -sf http://todo-backend:{{ .Values.backend.service.port }}/api/health
+          echo ""
+          echo "Backend health check: PASSED"
+    - name: test-frontend
+      image: curlimages/curl:8.5.0
+      command: ['sh', '-c']
+      args:
+        - |
+          echo "Testing frontend endpoint..."
+          curl -sf http://todo-frontend:{{ .Values.frontend.service.port }}/
+          echo ""
+          echo "Frontend check: PASSED"

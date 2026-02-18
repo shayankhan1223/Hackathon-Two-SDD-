@@ -9,10 +9,10 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     # Database
-    DATABASE_URL: str
+    DATABASE_URL: str = "postgresql://user:pass@localhost/dbname"
 
     # JWT
-    JWT_SECRET: str
+    JWT_SECRET: str = "dev-secret-change-in-production"
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRATION_HOURS: int = 24
 
@@ -26,9 +26,7 @@ class Settings(BaseSettings):
     # Environment
     ENVIRONMENT: str = "development"
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    model_config = {"env_file": ".env", "extra": "ignore"}
 
     @property
     def cors_origins_list(self) -> List[str]:

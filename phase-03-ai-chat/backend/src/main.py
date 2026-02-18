@@ -11,6 +11,7 @@ logging.basicConfig(level=logging.INFO)
 
 from src.api.routes.auth import router as auth_router
 from src.api.routes.calendar import router as calendar_router
+from src.api.routes.files import router as files_router
 from src.api.routes.health import router as health_router
 from src.api.routes.tags import router as tags_router
 from src.api.routes.tasks import router as tasks_router
@@ -33,16 +34,17 @@ app.include_router(auth_router)
 app.include_router(tasks_router)
 app.include_router(tags_router)
 app.include_router(calendar_router)
+app.include_router(files_router)
 app.include_router(chat_router)
 app.include_router(user_router)
 
 
 @app.on_event("startup")
 async def on_startup():
-    """Create any missing database tables on startup."""
-    from src.database.session import create_all_tables
-    await create_all_tables()
-    logging.info("Database tables verified/created.")
+    """Log startup event but defer database initialization."""
+    logging.info("Application starting up...")
+    # Defer database connection until it's actually needed
+    # This prevents startup failures due to database connectivity issues
 
 
 @app.exception_handler(Exception)

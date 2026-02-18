@@ -3,10 +3,15 @@ FastAPI application for Multi-User Todo Application with Authentication & Databa
 
 Main application setup with CORS configuration and route registration.
 """
-from fastapi import FastAPI
+import logging
+import traceback
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from src.api.routes import auth, tasks
 from src.config import settings
+
+logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(
     title="Multi-User Todo Application API",
@@ -29,6 +34,20 @@ app.add_middleware(
 # Register routers
 app.include_router(auth.router)
 app.include_router(tasks.router)
+
+
+@app.on_event("startup")
+async def on_startup():
+    """Log startup event but defer database initialization."""
+    logging.info("Application starting up...")
+    # Defer database connection until it's actually needed
+    # This prevents startup failures due to database connectivity issues
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logging.error(f"Unhandled error: {exc}\n{traceback.format_exc()}")
+    return JSONResponse(status_code=500, content={"detail": str(exc)})
 
 
 @app.get("/", tags=["Health"])
@@ -54,4 +73,4 @@ async def health():
 
     Returns API health status.
     """
-    return {"status": "healthy", "api": "operational", "database": "connected"}
+    return {"status": "healthy", "api": "operational", "database": "configured"}

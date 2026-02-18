@@ -8,6 +8,7 @@ from sqlmodel import Field, SQLModel, Relationship
 from typing import TYPE_CHECKING, List
 
 if TYPE_CHECKING:
+    from .uploaded_file import UploadedFile
     from .user_preferences import UserPreferences
     from .password_reset_token import PasswordResetToken
 
@@ -32,3 +33,4 @@ class User(SQLModel, table=True):
     # Relationships
     preferences: "UserPreferences" = Relationship(back_populates="user", sa_relationship_kwargs={"uselist": False})
     password_reset_tokens: List["PasswordResetToken"] = Relationship(back_populates="user")
+    uploaded_files: List["UploadedFile"] = Relationship(back_populates="user")

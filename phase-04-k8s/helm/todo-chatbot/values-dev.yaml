@@ -1,0 +1,28 @@
+# Phase IV Todo Chatbot — Development Overrides
+# AI-Generated via Claude Code
+# Use with: helm install -f values-dev.yaml
+
+backend:
+  image:
+    pullPolicy: Never  # Use local images loaded via minikube image load
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+frontend:
+  image:
+    pullPolicy: Never  # Use local images loaded via minikube image load
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+config:
+  nodeEnv: "development"

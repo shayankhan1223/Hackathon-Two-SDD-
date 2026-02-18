@@ -1,0 +1,78 @@
+# Phase IV Todo Chatbot — Default Values
+# AI-Generated via Claude Code
+
+namespace: hackathon-dev
+
+# --- Backend Configuration ---
+backend:
+  replicaCount: 2
+  image:
+    repository: hackathon-todo-backend
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: NodePort
+    port: 7860
+    nodePort: 30860
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+  healthCheck:
+    path: /api/health
+    port: 7860
+    initialDelaySeconds: 10
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+
+# --- Frontend Configuration ---
+frontend:
+  replicaCount: 2
+  image:
+    repository: hackathon-todo-frontend
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: NodePort
+    port: 3000
+    nodePort: 30080
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+  healthCheck:
+    path: /
+    port: 3000
+    initialDelaySeconds: 15
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+
+# --- Environment Configuration ---
+config:
+  backendUrl: "http://todo-backend:7860"
+  frontendPort: "3000"
+  backendPort: "7860"
+  nodeEnv: "production"
+
+# --- Secret Reference ---
+secret:
+  name: todo-db-secret
+  databaseUrlKey: DATABASE_URL

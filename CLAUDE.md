@@ -1,229 +1,413 @@
-# Claude Code Rules
+# Hackathon II — Governance & Development Rules
 
-This file is generated during init for the selected agent.
+> **Cloud-Native, AI-Governed, Spec-Driven Multi-Phase Project**
 
-You are an expert AI assistant specializing in Spec-Driven Development (SDD). Your primary goal is to work with the architext to build products.
+This file is the authoritative governance document for all AI agents operating within this repository. All agents, tools, and workflows MUST comply with these rules. Violations invalidate the affected artifacts.
 
-## Task context
+---
 
-**Your Surface:** You operate on a project level, providing guidance to users and executing development tasks via a defined set of tools.
+## 1. Project Overview
 
-**Your Success is Measured By:**
-- All outputs strictly follow the user intent.
-- Prompt History Records (PHRs) are created automatically and accurately for every user prompt.
-- Architectural Decision Record (ADR) suggestions are made intelligently for significant decisions.
-- All changes are small, testable, and reference code precisely.
+### 1.1 Multi-Phase Architecture
 
-## Core Guarantees (Product Promise)
+Hackathon II is a progressive, multi-phase software project where each phase builds upon the previous one, culminating in a fully cloud-native, AI-governed application.
 
-- Record every user input verbatim in a Prompt History Record (PHR) after every user message. Do not truncate; preserve full multiline input.
-- PHR routing (all under `history/prompts/`):
-  - Constitution → `history/prompts/constitution/`
-  - Feature-specific → `history/prompts/<feature-name>/`
-  - General → `history/prompts/general/`
-- ADR suggestions: when an architecturally significant decision is detected, suggest: "📋 Architectural decision detected: <brief>. Document? Run `/sp.adr <title>`." Never auto‑create ADRs; require user consent.
+| Phase | Directory | Description |
+|-------|-----------|-------------|
+| **I — Foundation** | `phase-01-console/` | Console-based Todo application. Core data model, CLI interface, TDD workflow. |
+| **II — Core Application** | `phase-02-web/` | Web-based Todo with FastAPI backend, Next.js frontend, Neon PostgreSQL, JWT auth. |
+| **III — Cloud Native Chatbot** | `phase-03-ai-chat/` | AI-powered chat Todo with OpenAI Agents SDK, real-time interactions, file uploads. |
+| **IV — Infrastructure Automation** | `phase-04-k8s/` | Local Kubernetes deployment via Minikube, Helm, Docker AI (Gordon), kubectl-ai, Kagent. |
 
-## Development Guidelines
+### 1.2 Progression Model
 
-### 1. Authoritative Source Mandate:
-Agents MUST prioritize and use MCP tools and CLI commands for all information gathering and task execution. NEVER assume a solution from internal knowledge; all methods require external verification.
+- Each phase inherits and extends the capabilities of prior phases.
+- Phase IV introduces **Infrastructure-as-AI-Artifact** — all deployment configuration is AI-generated, not hand-written.
+- The entire project must be reproducible from scratch using only the specs, plans, tasks, and recorded AI prompts.
 
-### 2. Execution Flow:
-Treat MCP servers as first-class tools for discovery, verification, execution, and state capture. PREFER CLI interactions (running commands and capturing outputs) over manual file creation or reliance on internal knowledge.
+---
 
-### 3. Knowledge capture (PHR) for Every User Input.
-After completing requests, you **MUST** create a PHR (Prompt History Record).
+## 2. Development Workflow Enforcement
 
-**When to create PHRs:**
-- Implementation work (code changes, new features)
-- Planning/architecture discussions
-- Debugging sessions
-- Spec/task/plan creation
-- Multi-step workflows
+### 2.1 Spec-Driven Development Lifecycle
+
+All work follows a strict, sequential lifecycle. **Skipping steps is prohibited.**
+
+```
+/sp.constitution  →  /sp.specify  →  /sp.plan  →  /sp.tasks  →  Implementation via Claude Code
+```
+
+| Step | Command | Purpose | Required Before |
+|------|---------|---------|-----------------|
+| 1 | `/sp.constitution` | Establish project principles and constraints | Any feature work |
+| 2 | `/sp.specify` | Define feature requirements in `spec.md` | Planning |
+| 3 | `/sp.plan` | Produce architectural plan in `plan.md` | Task generation |
+| 4 | `/sp.tasks` | Generate dependency-ordered tasks in `tasks.md` | Implementation |
+| 5 | `/sp.implement` | Execute tasks via Claude Code | Deployment |
+
+### 2.2 Enforcement Rules
+
+- **No implementation without a spec.** Code changes require a corresponding `spec.md`.
+- **No tasks without a plan.** Task generation requires a completed `plan.md`.
+- **No skipping to implementation.** The lifecycle is sequential and auditable.
+- **All artifacts are versioned.** Specs, plans, and tasks live under `specs/<feature>/`.
+
+---
+
+## 3. AI-Only Implementation Policy
+
+### 3.1 Prohibition of Manual Artifact Creation
+
+The following are **explicitly prohibited**:
+
+- Manually writing Dockerfiles
+- Manually writing Kubernetes YAML manifests
+- Manually writing Helm chart templates
+- Manually writing CI/CD pipeline configuration
+- Manually writing infrastructure configuration of any kind
+
+### 3.2 Mandatory AI Toolchain
+
+All artifacts MUST be generated using one of the following AI tools:
+
+| Tool | Scope |
+|------|-------|
+| **Claude Code** | Application code, specs, plans, tasks, orchestration |
+| **Docker AI (Gordon)** | Dockerfile generation, image optimization, build diagnostics |
+| **kubectl-ai** | Kubernetes manifest generation, resource configuration |
+| **Kagent** | Kubernetes agent operations, cluster diagnostics, scaling |
+
+### 3.3 Prompt Documentation Requirement
+
+Every AI-generated artifact MUST have its generating prompt recorded:
+
+- The exact prompt used to generate the artifact
+- The AI tool that produced it
+- The iteration count (if refined)
+- The final output hash or version reference
+
+---
+
+## 4. Phase IV Infrastructure Rules
+
+### 4.1 Docker Image Governance
+
+- All images MUST be generated via Docker AI (Gordon) or Claude Code.
+- Images MUST use multi-stage builds where applicable.
+- Base images MUST pin exact versions (no `latest` tags).
+- Images MUST include `HEALTHCHECK` instructions.
+- No secrets or credentials in image layers.
+
+### 4.2 Helm Chart Structure
+
+All Helm charts MUST reside within `phase-04-k8s/helm/` and follow this structure:
+
+```
+phase-04-k8s/helm/<chart-name>/
+├── Chart.yaml
+├── values.yaml
+├── values-dev.yaml
+├── templates/
+│   ├── deployment.yaml
+│   ├── service.yaml
+│   ├── ingress.yaml
+│   ├── hpa.yaml
+│   ├── configmap.yaml
+│   └── _helpers.tpl
+└── tests/
+```
+
+### 4.3 Kubernetes Namespace Policy
+
+| Namespace | Purpose |
+|-----------|---------|
+| `hackathon-dev` | Development deployments |
+| `hackathon-staging` | Pre-production validation |
+| `hackathon-prod` | Production-equivalent local deployment |
+
+- Each service MUST declare its target namespace explicitly.
+- Cross-namespace access MUST be documented and justified.
+
+### 4.4 Replica & Scaling Configuration
+
+- **Minimum replicas:** 1 (dev), 2 (staging/prod)
+- **HPA (Horizontal Pod Autoscaler):** Required for all stateless services
+- **Target CPU utilization:** 70%
+- **Max replicas:** Defined per service in `values.yaml`
+
+### 4.5 Resource Limits
+
+All pods MUST declare resource requests and limits:
+
+```yaml
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+```
+
+Actual values are service-specific and defined in `values.yaml`. Omitting limits is a governance violation.
+
+### 4.6 Health Checks
+
+Every deployment MUST include:
+
+- **Liveness probe:** Detects deadlocked containers; triggers restart.
+- **Readiness probe:** Gates traffic until the container is ready.
+- **Startup probe:** Allows slow-starting containers grace period.
+
+### 4.7 AI-Assisted Diagnostics
+
+- Use `kubectl-ai` for troubleshooting pod failures and resource issues.
+- Use `Kagent` for cluster-wide diagnostics and automated remediation.
+- All diagnostic sessions MUST be logged as PHRs.
+
+---
+
+## 5. Testing & Validation Standards
+
+### 5.1 Mandatory Validation Matrix
+
+All Phase IV deployments MUST pass the following validation gates:
+
+| Gate | Validation | Method |
+|------|-----------|--------|
+| **Container Build** | Image builds successfully, no CVEs above threshold | `docker build` + scan |
+| **Kubernetes Deploy** | All resources created, no error events | `kubectl get events` |
+| **Pod Health** | All pods reach `Running` state, probes pass | `kubectl get pods` |
+| **Replica Scaling** | HPA scales from min to target under load | Load test + `kubectl get hpa` |
+| **Failure Simulation** | Pod deletion triggers automatic recovery | `kubectl delete pod` + observe |
+| **Helm Upgrade** | Rolling update completes without downtime | `helm upgrade` + health check |
+| **Helm Rollback** | Previous revision restores successfully | `helm rollback` + verification |
+
+### 5.2 Validation Enforcement
+
+- No deployment is considered complete until all gates pass.
+- Validation results MUST be captured in the task completion record.
+- Failed validations MUST be diagnosed using AI tools (kubectl-ai, Kagent) before manual intervention.
+
+---
+
+## 6. Documentation & Audit Trail
+
+### 6.1 Prompt History Records (PHR)
+
+Every user interaction with an AI agent MUST be recorded as a PHR.
+
+**PHR routing (all under `history/prompts/`):**
+
+| Context | Path |
+|---------|------|
+| Constitution | `history/prompts/constitution/` |
+| Feature-specific | `history/prompts/<feature-name>/` |
+| General | `history/prompts/general/` |
 
 **PHR Creation Process:**
 
-1) Detect stage
-   - One of: constitution | spec | plan | tasks | red | green | refactor | explainer | misc | general
+1. Detect stage: `constitution | spec | plan | tasks | red | green | refactor | explainer | misc | general`
+2. Generate title (3-7 words) and filename slug.
+3. Read template from `.specify/templates/phr-template.prompt.md`.
+4. Fill all placeholders: ID, TITLE, STAGE, DATE_ISO, SURFACE, MODEL, FEATURE, BRANCH, USER, COMMAND, LABELS, LINKS, FILES_YAML, TESTS_YAML, PROMPT_TEXT (verbatim), RESPONSE_TEXT.
+5. Write to the appropriate route path.
+6. Validate: no unresolved placeholders, correct front-matter, complete prompt text, file exists at expected path.
+7. Report: ID, path, stage, title.
 
-2) Generate title
-   - 3–7 words; create a slug for the filename.
+**PHR is mandatory for:**
+- Implementation work (code changes, new features)
+- Planning and architecture discussions
+- Debugging sessions
+- Spec, task, and plan creation
+- Infrastructure generation and diagnostics
+- Multi-step workflows
 
-2a) Resolve route (all under history/prompts/)
-  - `constitution` → `history/prompts/constitution/`
-  - Feature stages (spec, plan, tasks, red, green, refactor, explainer, misc) → `history/prompts/<feature-name>/` (requires feature context)
-  - `general` → `history/prompts/general/`
+### 6.2 Architecture Decision Records (ADR)
 
-3) Prefer agent‑native flow (no shell)
-   - Read the PHR template from one of:
-     - `.specify/templates/phr-template.prompt.md`
-     - `templates/phr-template.prompt.md`
-   - Allocate an ID (increment; on collision, increment again).
-   - Compute output path based on stage:
-     - Constitution → `history/prompts/constitution/<ID>-<slug>.constitution.prompt.md`
-     - Feature → `history/prompts/<feature-name>/<ID>-<slug>.<stage>.prompt.md`
-     - General → `history/prompts/general/<ID>-<slug>.general.prompt.md`
-   - Fill ALL placeholders in YAML and body:
-     - ID, TITLE, STAGE, DATE_ISO (YYYY‑MM‑DD), SURFACE="agent"
-     - MODEL (best known), FEATURE (or "none"), BRANCH, USER
-     - COMMAND (current command), LABELS (["topic1","topic2",...])
-     - LINKS: SPEC/TICKET/ADR/PR (URLs or "null")
-     - FILES_YAML: list created/modified files (one per line, " - ")
-     - TESTS_YAML: list tests run/added (one per line, " - ")
-     - PROMPT_TEXT: full user input (verbatim, not truncated)
-     - RESPONSE_TEXT: key assistant output (concise but representative)
-     - Any OUTCOME/EVALUATION fields required by the template
-   - Write the completed file with agent file tools (WriteFile/Edit).
-   - Confirm absolute path in output.
+When architecturally significant decisions are detected, suggest:
 
-4) Use sp.phr command file if present
-   - If `.**/commands/sp.phr.*` exists, follow its structure.
-   - If it references shell but Shell is unavailable, still perform step 3 with agent‑native tools.
+> "Architectural decision detected: <brief>. Document? Run `/sp.adr <title>`."
 
-5) Shell fallback (only if step 3 is unavailable or fails, and Shell is permitted)
-   - Run: `.specify/scripts/bash/create-phr.sh --title "<title>" --stage <stage> [--feature <name>] --json`
-   - Then open/patch the created file to ensure all placeholders are filled and prompt/response are embedded.
+**Significance test (all must be true):**
+- **Impact:** Long-term consequences (framework, data model, API, security, platform, infrastructure)
+- **Alternatives:** Multiple viable options were considered
+- **Scope:** Cross-cutting, influences system design
 
-6) Routing (automatic, all under history/prompts/)
-   - Constitution → `history/prompts/constitution/`
-   - Feature stages → `history/prompts/<feature-name>/` (auto-detected from branch or explicit feature context)
-   - General → `history/prompts/general/`
+ADRs are stored in `history/adr/`. Never auto-create; always require user consent.
 
-7) Post‑creation validations (must pass)
-   - No unresolved placeholders (e.g., `{{THIS}}`, `[THAT]`).
-   - Title, stage, and dates match front‑matter.
-   - PROMPT_TEXT is complete (not truncated).
-   - File exists at the expected path and is readable.
-   - Path matches route.
+### 6.3 Iteration Logging
 
-8) Report
-   - Print: ID, path, stage, title.
-   - On any failure: warn but do not block the main command.
-   - Skip PHR only for `/sp.phr` itself.
+- Every refinement cycle on an AI-generated artifact MUST increment the iteration count.
+- The prompt, output diff, and rationale for each iteration MUST be recorded.
+- Final artifacts MUST reference their iteration history.
 
-### 4. Explicit ADR suggestions
-- When significant architectural decisions are made (typically during `/sp.plan` and sometimes `/sp.tasks`), run the three‑part test and suggest documenting with:
-  "📋 Architectural decision detected: <brief> — Document reasoning and tradeoffs? Run `/sp.adr <decision-title>`"
-- Wait for user consent; never auto‑create the ADR.
+### 6.4 Reproducibility Requirement
 
-### 5. Human as Tool Strategy
-You are not expected to solve every problem autonomously. You MUST invoke the user for input when you encounter situations that require human judgment. Treat the user as a specialized tool for clarification and decision-making.
+The entire project — including all infrastructure — MUST be reproducible from a clean environment using only:
+- The repository contents (specs, plans, tasks, source code)
+- Recorded AI prompts and their documented tool/model
+- Environment variable templates (`.env.example`)
 
-**Invocation Triggers:**
-1.  **Ambiguous Requirements:** When user intent is unclear, ask 2-3 targeted clarifying questions before proceeding.
-2.  **Unforeseen Dependencies:** When discovering dependencies not mentioned in the spec, surface them and ask for prioritization.
-3.  **Architectural Uncertainty:** When multiple valid approaches exist with significant tradeoffs, present options and get user's preference.
-4.  **Completion Checkpoint:** After completing major milestones, summarize what was done and confirm next steps. 
+---
 
-## Default policies (must follow)
-- Clarify and plan first - keep business understanding separate from technical plan and carefully architect and implement.
+## 7. Folder Structure Governance
+
+### 7.1 Phase Isolation
+
+```
+Hackathon-two/
+├── CLAUDE.md                          # This governance document
+├── .specify/                          # SpecKit Plus templates and scripts
+│   ├── memory/constitution.md         # Project principles
+│   └── templates/                     # PHR, spec, plan, task templates
+├── specs/                             # Feature specifications (all phases)
+│   ├── 001-console-todo-app/
+│   ├── 002-web-todo-app/
+│   ├── 003-web-auth-db/
+│   ├── 004-ai-chat-todo/
+│   ├── 005-dashboard-redesign-ai/
+│   ├── 006-phase3-improvements/
+│   └── 007-k8s-deployment/           # Phase IV spec
+├── history/
+│   ├── prompts/                       # PHR records
+│   └── adr/                           # Architecture Decision Records
+├── phase-01-console/                  # Phase I: Foundation
+├── phase-02-web/                      # Phase II: Core Application
+├── phase-03-ai-chat/                  # Phase III: Cloud Native Chatbot
+└── phase-04-k8s/                      # Phase IV: Infrastructure Automation
+    ├── docker/                        # AI-generated Dockerfiles
+    ├── helm/                          # AI-generated Helm charts
+    ├── manifests/                     # AI-generated K8s manifests
+    ├── scripts/                       # AI-generated deployment scripts
+    └── docs/                          # Infrastructure documentation
+```
+
+### 7.2 Isolation Rules
+
+- **Phase IV MUST NOT modify files in Phase I, II, or III directories.** It consumes their built images.
+- **Helm charts MUST reside within `phase-04-k8s/helm/`.**
+- **Dockerfiles MUST reside within `phase-04-k8s/docker/`** (or reference phase-specific Dockerfiles if they exist).
+- **Kubernetes manifests (non-Helm) MUST reside within `phase-04-k8s/manifests/`.**
+- **Cross-phase references are read-only.** Phase IV reads source from prior phases to build images; it does not edit them.
+
+---
+
+## 8. Infrastructure Blueprint Philosophy
+
+### 8.1 Infrastructure as AI-Governed Artifact
+
+Phase IV extends Spec-Driven Development to infrastructure. Infrastructure configuration is not manually written — it is **specified, planned, tasked, and AI-generated**, following the same lifecycle as application code:
+
+1. **Specify** — Define infrastructure requirements (services, scaling, networking, storage).
+2. **Plan** — Architect the Kubernetes topology, Helm chart design, and deployment strategy.
+3. **Task** — Break down into ordered, testable infrastructure tasks.
+4. **Generate** — Use Docker AI, kubectl-ai, Kagent, and Claude Code to produce all artifacts.
+5. **Validate** — Run the full validation matrix (Section 5) before acceptance.
+
+### 8.2 Governing Principles
+
+- **No hand-written YAML.** All Kubernetes and Helm configuration is AI-generated.
+- **Prompt provenance.** Every generated artifact traces back to a recorded prompt.
+- **Iterative refinement.** AI outputs are refined through documented iteration cycles, not manual edits.
+- **Reproducibility.** Any team member can regenerate the infrastructure from the recorded prompts and specs.
+- **Auditability.** The full chain from requirement to deployed resource is traceable through specs, plans, tasks, PHRs, and ADRs.
+
+---
+
+## 9. Agent Operational Rules
+
+### 9.1 Authoritative Source Mandate
+
+Agents MUST prioritize MCP tools and CLI commands for all information gathering and task execution. NEVER assume a solution from internal knowledge; all methods require external verification.
+
+### 9.2 Execution Flow
+
+Treat MCP servers as first-class tools for discovery, verification, execution, and state capture. PREFER CLI interactions (running commands and capturing outputs) over manual file creation or reliance on internal knowledge.
+
+### 9.3 Human as Tool Strategy
+
+Agents are not expected to solve every problem autonomously. Invoke the user for input when encountering:
+
+1. **Ambiguous Requirements** — Ask 2-3 targeted clarifying questions before proceeding.
+2. **Unforeseen Dependencies** — Surface them and ask for prioritization.
+3. **Architectural Uncertainty** — Present options with tradeoffs and get user preference.
+4. **Completion Checkpoints** — Summarize what was done and confirm next steps.
+
+### 9.4 Default Policies
+
+- Clarify and plan first. Keep business understanding separate from technical plan.
 - Do not invent APIs, data, or contracts; ask targeted clarifiers if missing.
-- Never hardcode secrets or tokens; use `.env` and docs.
+- Never hardcode secrets or tokens; use `.env` and documentation.
 - Prefer the smallest viable diff; do not refactor unrelated code.
-- Cite existing code with code references (start:end:path); propose new code in fenced blocks.
+- Cite existing code with references (`start:end:path`); propose new code in fenced blocks.
 - Keep reasoning private; output only decisions, artifacts, and justifications.
 
-### Execution contract for every request
-1) Confirm surface and success criteria (one sentence).
-2) List constraints, invariants, non‑goals.
-3) Produce the artifact with acceptance checks inlined (checkboxes or tests where applicable).
-4) Add follow‑ups and risks (max 3 bullets).
-5) Create PHR in appropriate subdirectory under `history/prompts/` (constitution, feature-name, or general).
-6) If plan/tasks identified decisions that meet significance, surface ADR suggestion text as described above.
+### 9.5 Execution Contract for Every Request
 
-### Minimum acceptance criteria
-- Clear, testable acceptance criteria included
-- Explicit error paths and constraints stated
-- Smallest viable change; no unrelated edits
-- Code references to modified/inspected files where relevant
+1. Confirm surface and success criteria (one sentence).
+2. List constraints, invariants, non-goals.
+3. Produce the artifact with acceptance checks inlined.
+4. Add follow-ups and risks (max 3 bullets).
+5. Create PHR in the appropriate subdirectory under `history/prompts/`.
+6. Surface ADR suggestion if significant decisions were identified.
 
-## Architect Guidelines (for planning)
+### 9.6 Minimum Acceptance Criteria
 
-Instructions: As an expert architect, generate a detailed architectural plan for [Project Name]. Address each of the following thoroughly.
+- Clear, testable acceptance criteria included.
+- Explicit error paths and constraints stated.
+- Smallest viable change; no unrelated edits.
+- Code references to modified/inspected files where relevant.
 
-1. Scope and Dependencies:
-   - In Scope: boundaries and key features.
-   - Out of Scope: explicitly excluded items.
-   - External Dependencies: systems/services/teams and ownership.
+---
 
-2. Key Decisions and Rationale:
-   - Options Considered, Trade-offs, Rationale.
-   - Principles: measurable, reversible where possible, smallest viable change.
+## 10. Architect Guidelines
 
-3. Interfaces and API Contracts:
-   - Public APIs: Inputs, Outputs, Errors.
-   - Versioning Strategy.
-   - Idempotency, Timeouts, Retries.
-   - Error Taxonomy with status codes.
+When performing architectural planning, address each of the following:
 
-4. Non-Functional Requirements (NFRs) and Budgets:
-   - Performance: p95 latency, throughput, resource caps.
-   - Reliability: SLOs, error budgets, degradation strategy.
-   - Security: AuthN/AuthZ, data handling, secrets, auditing.
-   - Cost: unit economics.
+1. **Scope & Dependencies** — In scope, out of scope, external dependencies with ownership.
+2. **Key Decisions & Rationale** — Options considered, tradeoffs, measurable principles.
+3. **Interfaces & API Contracts** — Inputs, outputs, errors, versioning, idempotency, error taxonomy.
+4. **Non-Functional Requirements** — Performance (p95 latency, throughput), reliability (SLOs, error budgets), security (AuthN/AuthZ, secrets), cost.
+5. **Data Management** — Source of truth, schema evolution, migration/rollback, retention.
+6. **Operational Readiness** — Observability (logs, metrics, traces), alerting, runbooks, deployment/rollback, feature flags.
+7. **Risk Analysis** — Top 3 risks, blast radius, kill switches/guardrails.
+8. **Evaluation & Validation** — Definition of done, output validation for format/requirements/safety.
+9. **ADR** — For each significant decision, suggest an ADR and link it.
 
-5. Data Management and Migration:
-   - Source of Truth, Schema Evolution, Migration and Rollback, Data Retention.
+---
 
-6. Operational Readiness:
-   - Observability: logs, metrics, traces.
-   - Alerting: thresholds and on-call owners.
-   - Runbooks for common tasks.
-   - Deployment and Rollback strategies.
-   - Feature Flags and compatibility.
+## 11. Active Technology Stack
 
-7. Risk Analysis and Mitigation:
-   - Top 3 Risks, blast radius, kill switches/guardrails.
+### Application Layer
 
-8. Evaluation and Validation:
-   - Definition of Done (tests, scans).
-   - Output Validation for format/requirements/safety.
+| Component | Technology | Phase |
+|-----------|-----------|-------|
+| Backend | Python 3.12, FastAPI, SQLModel, OpenAI Agents SDK | II, III |
+| Frontend | TypeScript 5.9.3, Next.js 16, React 19, Tailwind CSS 4.x | II, III |
+| Database | Neon PostgreSQL (serverless) via asyncpg | II, III |
+| Auth | JWT-based authentication | II, III |
+| Icons | Lucide React | II, III |
+| Validation | Zod (frontend), Pydantic (backend) | II, III |
 
-9. Architectural Decision Record (ADR):
-   - For each significant decision, create an ADR and link it.
+### Infrastructure Layer (Phase IV)
 
-### Architecture Decision Records (ADR) - Intelligent Suggestion
+| Component | Technology |
+|-----------|-----------|
+| Container Runtime | Docker + Docker AI (Gordon) |
+| Orchestration | Kubernetes via Minikube |
+| Package Management | Helm 3 |
+| AI Manifest Generation | kubectl-ai |
+| AI Cluster Operations | Kagent |
+| Local Registry | Minikube built-in registry |
 
-After design/architecture work, test for ADR significance:
+---
 
-- Impact: long-term consequences? (e.g., framework, data model, API, security, platform)
-- Alternatives: multiple viable options considered?
-- Scope: cross‑cutting and influences system design?
-
-If ALL true, suggest:
-📋 Architectural decision detected: [brief-description]
-   Document reasoning and tradeoffs? Run `/sp.adr [decision-title]`
-
-Wait for consent; never auto-create ADRs. Group related decisions (stacks, authentication, deployment) into one ADR when appropriate.
-
-## Basic Project Structure
-
-- `.specify/memory/constitution.md` — Project principles
-- `specs/<feature>/spec.md` — Feature requirements
-- `specs/<feature>/plan.md` — Architecture decisions
-- `specs/<feature>/tasks.md` — Testable tasks with cases
-- `history/prompts/` — Prompt History Records
-- `history/adr/` — Architecture Decision Records
-- `.specify/` — SpecKit Plus templates and scripts
-
-## Code Standards
-See `.specify/memory/constitution.md` for code quality, testing, performance, security, and architecture principles.
+**Version:** 2.0.0 | **Effective:** 2026-02-18 | **Scope:** All phases, all agents, all contributors
 
 ## Active Technologies
-- Neon PostgreSQL (serverless PostgreSQL) (003-web-auth-db)
-- Python 3.12+ (backend), TypeScript 5.x (frontend) (004-ai-chat-todo)
-- Neon PostgreSQL (serverless) via asyncpg (004-ai-chat-todo)
-- Python 3.12, TypeScript 5.x + FastAPI, Next.js 14+, Neon PostgreSQL, SQLModel, JWT (004-ai-chat-todo)
-- Neon PostgreSQL (serverless PostgreSQL) via asyncpg (004-ai-chat-todo)
-- TypeScript 5.x, React 18, Next.js 14 (App Router) + Tailwind CSS 3.4, Lucide React (icons), clsx, Zod (004-ai-chat-todo)
-- N/A (frontend only — consumes existing backend APIs) (004-ai-chat-todo)
-- TypeScript 5.9.3 (Next.js 16, React 19) + Tailwind CSS 4.1.18, Lucide React 0.563, clsx, react-hook-form, zod (004-ai-chat-todo)
-- TypeScript 5.9.3 with React 19 and Next.js 16.1.6 (App Router) + Tailwind CSS 4.1.18, Lucide React 0.563, clsx, Zod 4.3, react-hook-form 7.71 (005-dashboard-redesign-ai)
-- N/A (frontend-only; consumes existing backend APIs via `src/lib/api.ts`) (005-dashboard-redesign-ai)
-- Python 3.12 (backend), TypeScript 5.9.3 (frontend) + FastAPI, SQLModel, OpenAI Agents SDK, asyncpg (backend); Next.js 16, React 19, Tailwind CSS 4.x, Lucide React (frontend) (006-phase3-improvements)
-- Neon PostgreSQL (serverless) via asyncpg with SQLAlchemy async engine (006-phase3-improvements)
-- Python 3.12 (backend — no changes in Round 2), TypeScript 5.9.3 (frontend) + Next.js 16, React 19, Tailwind CSS 4.x, Lucide React (frontend only — backend unchanged) (006-phase3-improvements)
-- Neon PostgreSQL via asyncpg (no schema changes in Round 2) (006-phase3-improvements)
+- Python 3.12 (backend), TypeScript 5.9.3 / Node.js (frontend) + Docker Desktop, Minikube (Docker driver), Helm 3, kubectl-ai, Kagent (007-k8s-deployment)
+- Neon PostgreSQL (external, accessed via Kubernetes Secret) (007-k8s-deployment)
 
 ## Recent Changes
-- 003-web-auth-db: Added Neon PostgreSQL (serverless PostgreSQL)
+- 007-k8s-deployment: Added Python 3.12 (backend), TypeScript 5.9.3 / Node.js (frontend) + Docker Desktop, Minikube (Docker driver), Helm 3, kubectl-ai, Kagent

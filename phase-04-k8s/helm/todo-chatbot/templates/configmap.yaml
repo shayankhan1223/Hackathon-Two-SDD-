@@ -1,0 +1,16 @@
+{{/*
+Phase IV Todo Chatbot — ConfigMap Template
+AI-Generated via Claude Code
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: todo-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "todo-chatbot.labels" . | nindent 4 }}
+data:
+  BACKEND_URL: {{ .Values.config.backendUrl | quote }}
+  FRONTEND_PORT: {{ .Values.config.frontendPort | quote }}
+  BACKEND_PORT: {{ .Values.config.backendPort | quote }}
+  NODE_ENV: {{ .Values.config.nodeEnv | quote }}
